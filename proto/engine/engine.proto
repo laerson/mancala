@@ -1,7 +1,7 @@
 syntax = "proto3";
 package proto.engine;
 
-option go_package = "github.com/laerson/mancala/proto/engine;engine";
+option go_package = "github.com/laerson/mancala/proto/engine;enginepb";
 
 enum Player {
     PLAYER_ONE = 0;
