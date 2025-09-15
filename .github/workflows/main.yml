@@ -26,4 +26,4 @@ jobs:
         with:
           file: ./cmd/engine/Dockerfile
           push: true
-          tags: laerson/mancala:latest
+          tags: ghcr.io/laerson/mancala:latest
