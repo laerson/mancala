@@ -80,7 +80,7 @@ func (s *Server) Move(ctx context.Context, req *enginepb.MoveRequest) (*enginepb
 		case enginepb.Player_PLAYER_ONE:
 			for i, v := range board[7:13] {
 				board[13] += v
-				board[i] = 0
+				board[i+7] = 0
 			}
 		case enginepb.Player_PLAYER_TWO:
 			for i, v := range board[0:6] {
