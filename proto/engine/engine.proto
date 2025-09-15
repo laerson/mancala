@@ -1,0 +1,52 @@
+syntax = "proto3";
+package proto.engine;
+
+option go_package = "github.com/laerson/mancala/proto/engine;engine";
+
+enum Player {
+    PLAYER_ONE = 0;
+    PLAYER_TWO = 1;
+}
+
+enum Winner {
+    NO_WINNER = 0;
+    WINNER_PLAYER_ONE = 1;
+    WINNER_PLAYER_TWO = 2;
+    DRAW = 3;
+}
+
+message Board {
+  repeated uint32 pits = 1;
+}
+
+message GameState {
+    Board board = 1;
+    Player current_player = 2;
+}
+
+message MoveRequest {
+    GameState game_state = 1;
+    uint32 pit_index = 2;
+}
+
+message Error {
+    string message = 1;
+}
+
+message MoveResult {
+  Board board = 1;
+  Player current_player = 2;
+  bool is_finished = 3;
+  Winner winner = 4;
+}
+
+message MoveResponse {
+    oneof result {
+        MoveResult move_result = 1;
+        Error error = 2;
+    }
+}
+
+service Engine {
+  rpc Move(MoveRequest) returns (MoveResponse);
+}
