@@ -5,6 +5,17 @@
   vars:
     app_namespace: mancala
     kubeconfig_path: "/home/{{ ansible_user }}/.kube/config"
+    # Docker config for GitHub Container Registry
+    docker_config_json: |
+      {
+        "auths": {
+          "ghcr.io": {
+            "username": "{{ github_username }}",
+            "password": "{{ github_token }}",
+            "auth": "{{ (github_username + ':' + github_token) | b64encode }}"
+          }
+        }
+      }
 
   tasks:
     - name: Create mancala namespace
@@ -15,47 +26,73 @@
         state: present
         kubeconfig: "{{ kubeconfig_path }}"
 
-    - name: Copy k8s manifests to remote host
-      copy:
-        src: "{{ item }}"
-        dest: "/tmp/"
-      loop:
-        - "../../k8s/redis.yaml"
-        - "../../k8s/engine.yaml"
-        - "../../k8s/games.yaml"
+    - name: Create Docker registry secret
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: github
+            namespace: "{{ app_namespace }}"
+          type: kubernetes.io/dockerconfigjson
+          data:
+            .dockerconfigjson: "{{ docker_config_json | b64encode }}"
+        kubeconfig: "{{ kubeconfig_path }}"
 
     - name: Deploy Redis
       kubernetes.core.k8s:
         state: present
-        definition: "{{ lookup('file', '/tmp/redis.yaml') | from_yaml_all | list }}"
+        definition: "{{ lookup('file', '../../k8s/redis.yaml') | from_yaml_all | list }}"
         namespace: "{{ app_namespace }}"
         kubeconfig: "{{ kubeconfig_path }}"
 
     - name: Deploy Engine service
       kubernetes.core.k8s:
         state: present
-        definition: "{{ lookup('file', '/tmp/engine.yaml') | from_yaml_all | list }}"
+        definition: "{{ lookup('file', '../../k8s/engine.yaml') | from_yaml_all | list }}"
         namespace: "{{ app_namespace }}"
         kubeconfig: "{{ kubeconfig_path }}"
 
     - name: Deploy Games service
       kubernetes.core.k8s:
         state: present
-        definition: "{{ lookup('file', '/tmp/games.yaml') | from_yaml_all | list }}"
+        definition: "{{ lookup('file', '../../k8s/games.yaml') | from_yaml_all | list }}"
         namespace: "{{ app_namespace }}"
         kubeconfig: "{{ kubeconfig_path }}"
 
-    - name: Wait for deployments to be ready
-      kubernetes.core.k8s_info:
-        api_version: apps/v1
-        kind: Deployment
-        namespace: "{{ app_namespace }}"
-        kubeconfig: "{{ kubeconfig_path }}"
-        wait: true
-        wait_condition:
-          type: Available
-          status: "True"
-        wait_timeout: 300
+    - name: Check deployment status
+      shell: kubectl get deployments -n {{ app_namespace }} -o wide
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: deployment_check
+      failed_when: false
+
+    - name: Display deployment check
+      debug:
+        var: deployment_check.stdout_lines
+
+    - name: Check pod status
+      shell: kubectl get pods -n {{ app_namespace }} -o wide
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: pod_check
+      failed_when: false
+
+    - name: Display pod status
+      debug:
+        var: pod_check.stdout_lines
+
+    - name: Describe problematic pods (if any)
+      shell: kubectl describe pods -n {{ app_namespace }}
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: pod_describe
+      failed_when: false
+
+    - name: Display pod descriptions
+      debug:
+        var: pod_describe.stdout_lines
 
     - name: Get deployment status
       shell: kubectl get all -n {{ app_namespace }}

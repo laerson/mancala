@@ -29,6 +29,13 @@ This directory contains Terraform and Ansible configurations for deploying a sin
    - Generate or use existing SSH key pair
    - Default location: `~/.ssh/id_rsa` (configurable)
 
+4. **GitHub Container Registry Access**:
+   - Create a GitHub Personal Access Token for private image access:
+     1. Go to GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
+     2. Click "Generate new token (classic)"
+     3. Select scopes: `read:packages`
+     4. Copy the generated token and save it securely
+
 ## Configuration
 
 1. Copy the example variables file:
@@ -96,7 +103,20 @@ terraform apply -var-file="../terraform.tfvars"
 cd ansible
 ansible-galaxy collection install -r requirements.yml
 ansible-playbook k8s-setup.yml
-ansible-playbook deploy-mancala.yml
+
+# Deploy application with GitHub credentials
+ansible-playbook deploy-mancala.yml \
+  -e github_username=YOUR_GITHUB_USERNAME \
+  -e github_token=YOUR_GITHUB_TOKEN
+```
+
+**Alternative using environment variables:**
+```bash
+export GITHUB_USERNAME=your_username
+export GITHUB_TOKEN=your_personal_access_token
+ansible-playbook deploy-mancala.yml \
+  -e github_username=$GITHUB_USERNAME \
+  -e github_token=$GITHUB_TOKEN
 ```
 
 ## Outputs
@@ -106,7 +126,10 @@ After successful deployment:
 - **Master Node IP**: Public IP of the Kubernetes master
 - **SSH Access**: `ssh -i ~/.ssh/id_rsa ubuntu@<master-ip>`
 - **Games Service**: Available at `<master-ip>:30052`
-- **Kubectl Config**: Copy from master node to access cluster locally
+- **Kubectl Config**: Copy from master node to access cluster locally:
+  ```bash
+  scp -i ~/.ssh/id_rsa ubuntu@<master-ip>:~/.kube/config ~/.kube/config
+  ```
 
 ## Architecture Details
 

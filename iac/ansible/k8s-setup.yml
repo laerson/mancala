@@ -8,6 +8,15 @@
     pod_network_cidr: "10.244.0.0/16"
 
   tasks:
+    - name: Clean up old Helm repository
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/helm-stable-debian.list
+        - /usr/share/keyrings/helm.gpg
+      ignore_errors: yes
+
     - name: Load kernel modules
       modprobe:
         name: "{{ item }}"
@@ -165,12 +174,23 @@
       retries: 30
       delay: 10
 
+    - name: Install Python pip
+      apt:
+        name: python3-pip
+        state: present
+        update_cache: yes
+
+    - name: Install kubernetes Python library for Ansible
+      pip:
+        name: kubernetes
+        state: present
+
     - name: Install Helm
       shell: |
-        curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
-        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
-        apt-get update
-        apt-get install helm -y
+        curl https://get.helm.sh/helm-v3.12.3-linux-amd64.tar.gz -o helm.tar.gz
+        tar -zxvf helm.tar.gz
+        sudo mv linux-amd64/helm /usr/local/bin/helm
+        rm -rf helm.tar.gz linux-amd64
 
     - name: Get cluster status
       shell: kubectl get nodes -o wide

@@ -94,13 +94,7 @@ resource "openstack_networking_secgroup_rule_v2" "https" {
   security_group_id = openstack_networking_secgroup_v2.k8s_secgroup.id
 }
 
-# Allow all outbound traffic
-resource "openstack_networking_secgroup_rule_v2" "egress" {
-  direction         = "egress"
-  ethertype         = "IPv4"
-  remote_ip_prefix  = "0.0.0.0/0"
-  security_group_id = openstack_networking_secgroup_v2.k8s_secgroup.id
-}
+# Default egress rule (allow all outbound traffic) is created automatically by OpenStack
 
 # Create the compute instance
 resource "openstack_compute_instance_v2" "k8s_master" {
