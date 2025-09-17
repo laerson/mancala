@@ -54,6 +54,20 @@
         namespace: "{{ app_namespace }}"
         kubeconfig: "{{ kubeconfig_path }}"
 
+    - name: Deploy Event Bus service
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('file', '../../k8s/event-bus.yaml') | from_yaml_all | list }}"
+        namespace: "{{ app_namespace }}"
+        kubeconfig: "{{ kubeconfig_path }}"
+
+    - name: Deploy Matchmaking service
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('file', '../../k8s/matchmaking.yaml') | from_yaml_all | list }}"
+        namespace: "{{ app_namespace }}"
+        kubeconfig: "{{ kubeconfig_path }}"
+
     - name: Deploy Games service
       kubernetes.core.k8s:
         state: present
@@ -126,6 +140,28 @@
               app: games
         kubeconfig: "{{ kubeconfig_path }}"
 
+    - name: Create NodePort service for matchmaking (for external access)
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: matchmaking-nodeport
+            namespace: "{{ app_namespace }}"
+            labels:
+              app: matchmaking
+          spec:
+            type: NodePort
+            ports:
+            - port: 50054
+              targetPort: 50054
+              nodePort: 30054
+              name: grpc
+            selector:
+              app: matchmaking
+        kubeconfig: "{{ kubeconfig_path }}"
+
     - name: Get service endpoints
       shell: kubectl get svc -n {{ app_namespace }}
       environment:
@@ -141,4 +177,5 @@
         msg:
           - "Mancala services deployed successfully!"
           - "Games service accessible at: {{ ansible_default_ipv4.address }}:30052"
+          - "Matchmaking service accessible at: {{ ansible_default_ipv4.address }}:30054"
           - "Use kubectl port-forward for local access to other services"
