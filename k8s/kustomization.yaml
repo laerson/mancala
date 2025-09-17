@@ -5,6 +5,7 @@ resources:
 - redis.yaml
 - engine.yaml
 - games.yaml
+- matchmaking.yaml
 
 namespace: mancala
 

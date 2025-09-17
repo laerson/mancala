@@ -26,8 +26,6 @@ spec:
           value: "redis:6379"
         - name: ENGINE_ADDR
           value: "engine:50051"
-        - name: EVENT_BUS_ADDR
-          value: "event-bus:50053"
         readinessProbe:
           tcpSocket:
             port: 50052
@@ -58,12 +56,6 @@ spec:
         - sh
         - -c
         - "until nc -z engine 50051; do echo waiting for engine; sleep 2; done"
-      - name: wait-for-event-bus
-        image: busybox:1.35
-        command:
-        - sh
-        - -c
-        - "until nc -z event-bus 50053; do echo waiting for event-bus; sleep 2; done"
 ---
 apiVersion: v1
 kind: Service

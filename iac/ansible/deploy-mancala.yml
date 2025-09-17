@@ -18,6 +18,13 @@
       }
 
   tasks:
+    - name: Ensure kubernetes Python library is installed for current user
+      pip:
+        name: kubernetes
+        state: present
+        extra_args: --user
+      become: no
+
     - name: Create mancala namespace
       kubernetes.core.k8s:
         name: "{{ app_namespace }}"
@@ -51,13 +58,6 @@
       kubernetes.core.k8s:
         state: present
         definition: "{{ lookup('file', '../../k8s/engine.yaml') | from_yaml_all | list }}"
-        namespace: "{{ app_namespace }}"
-        kubeconfig: "{{ kubeconfig_path }}"
-
-    - name: Deploy Event Bus service
-      kubernetes.core.k8s:
-        state: present
-        definition: "{{ lookup('file', '../../k8s/event-bus.yaml') | from_yaml_all | list }}"
         namespace: "{{ app_namespace }}"
         kubeconfig: "{{ kubeconfig_path }}"
 

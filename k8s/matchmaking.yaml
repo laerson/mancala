@@ -26,8 +26,6 @@ spec:
           value: "redis:6379"
         - name: GAMES_ADDR
           value: "games:50052"
-        - name: EVENT_BUS_ADDR
-          value: "event-bus:50053"
         - name: GRPC_PORT
           value: "50054"
         - name: MATCH_TIMEOUT_SECONDS
@@ -64,12 +62,6 @@ spec:
         - sh
         - -c
         - "until nc -z games 50052; do echo waiting for games; sleep 2; done"
-      - name: wait-for-event-bus
-        image: busybox:1.35
-        command:
-        - sh
-        - -c
-        - "until nc -z event-bus 50053; do echo waiting for event-bus; sleep 2; done"
 ---
 apiVersion: v1
 kind: Service
