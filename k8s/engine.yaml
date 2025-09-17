@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine
+  labels:
+    app: engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: engine
+  template:
+    metadata:
+      labels:
+        app: engine
+    spec:
+      imagePullSecrets:
+      - name: github
+      containers:
+      - name: engine
+        image: ghcr.io/laerson/mancala:latest-engine
+        ports:
+        - containerPort: 50051
+        readinessProbe:
+          tcpSocket:
+            port: 50051
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: 50051
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: engine
+  labels:
+    app: engine
+spec:
+  ports:
+  - port: 50051
+    targetPort: 50051
+    name: grpc
+  selector:
+    app: engine
+  type: ClusterIP

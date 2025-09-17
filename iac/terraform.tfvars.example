@@ -1,0 +1,16 @@
+# Copy this file to terraform.tfvars and customize the values
+
+# Cluster configuration
+cluster_name = "mancala-k8s"
+environment  = "development"
+
+# OpenStack configuration
+image_name             = "Ubuntu 22.04"
+flavor_name            = "m1.medium"
+network_name           = "private"
+external_network_name  = "public"
+
+# SSH configuration
+public_key_path  = "~/.ssh/id_rsa.pub"
+private_key_path = "~/.ssh/id_rsa"
+ssh_user         = "ubuntu"
