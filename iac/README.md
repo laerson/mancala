@@ -126,6 +126,7 @@ After successful deployment:
 - **Master Node IP**: Public IP of the Kubernetes master
 - **SSH Access**: `ssh -i ~/.ssh/id_rsa ubuntu@<master-ip>`
 - **Games Service**: Available at `<master-ip>:30052`
+- **Matchmaking Service**: Available at `<master-ip>:30054`
 - **Kubectl Config**: Copy from master node to access cluster locally:
   ```bash
   scp -i ~/.ssh/id_rsa ubuntu@<master-ip>:~/.kube/config ~/.kube/config
@@ -151,9 +152,10 @@ After successful deployment:
 ### Application Deployment
 
 - **Namespace**: `mancala`
-- **Services**: Redis, Engine, Games
-- **Networking**: NodePort service for external access on port 30052
+- **Services**: Redis, Engine, Games, Matchmaking
+- **Networking**: NodePort services for external access (Games: 30052, Matchmaking: 30054)
 - **Storage**: Redis with persistent volume
+- **Private Registry**: GitHub Container Registry authentication
 
 ## Troubleshooting
 
