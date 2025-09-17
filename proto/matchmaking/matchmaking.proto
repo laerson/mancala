@@ -1,0 +1,117 @@
+syntax = "proto3";
+package proto.matchmaking;
+
+import "proto/games/games.proto";
+
+option go_package = "github.com/laerson/mancala/proto/matchmaking;matchmakingpb";
+
+// Player information for matchmaking
+message Player {
+    string id = 1;
+    string name = 2;
+    int32 skill_rating = 3; // Optional: for skill-based matching
+}
+
+// Matchmaking queue status
+enum QueueStatus {
+    QUEUED = 0;
+    MATCHED = 1;
+    CANCELLED = 2;
+    GAME_CREATED = 3;
+}
+
+// Enqueue request
+message EnqueueRequest {
+    Player player = 1;
+}
+
+message EnqueueResponse {
+    bool success = 1;
+    string queue_id = 2;
+    string message = 3;
+    int32 estimated_wait_time_seconds = 4;
+}
+
+// Cancel queue request
+message CancelQueueRequest {
+    string player_id = 1;
+    string queue_id = 2;
+}
+
+message CancelQueueResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+// Queue status request
+message GetQueueStatusRequest {
+    string player_id = 1;
+    string queue_id = 2;
+}
+
+message GetQueueStatusResponse {
+    QueueStatus status = 1;
+    int32 queue_position = 2;
+    int32 estimated_wait_time_seconds = 3;
+    string game_id = 4; // Set when status is GAME_CREATED
+}
+
+// Match found event (for event bus)
+message MatchFoundEvent {
+    string match_id = 1;
+    Player player1 = 2;
+    Player player2 = 3;
+    string game_id = 4;
+    int64 timestamp = 5;
+}
+
+// Streaming matchmaking updates
+message MatchmakingUpdate {
+    string queue_id = 1;
+    QueueStatus status = 2;
+    oneof update {
+        QueuePositionUpdate queue_position = 3;
+        MatchFound match_found = 4;
+        QueueCancelled queue_cancelled = 5;
+        GameCreated game_created = 6;
+    }
+}
+
+message QueuePositionUpdate {
+    int32 position = 1;
+    int32 estimated_wait_time_seconds = 2;
+}
+
+message MatchFound {
+    string match_id = 1;
+    Player opponent = 2;
+}
+
+message QueueCancelled {
+    string reason = 1;
+}
+
+message GameCreated {
+    string game_id = 1;
+    proto.games.Game game = 2;
+}
+
+// Streaming request
+message StreamUpdatesRequest {
+    string player_id = 1;
+    string queue_id = 2;
+}
+
+service Matchmaking {
+    // Enqueue a player for matchmaking
+    rpc Enqueue(EnqueueRequest) returns (EnqueueResponse);
+
+    // Cancel matchmaking queue
+    rpc CancelQueue(CancelQueueRequest) returns (CancelQueueResponse);
+
+    // Get current queue status
+    rpc GetQueueStatus(GetQueueStatusRequest) returns (GetQueueStatusResponse);
+
+    // Stream matchmaking updates (optional real-time updates)
+    rpc StreamUpdates(StreamUpdatesRequest) returns (stream MatchmakingUpdate);
+}

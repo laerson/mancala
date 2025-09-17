@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: matchmaking
+  labels:
+    app: matchmaking
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: matchmaking
+  template:
+    metadata:
+      labels:
+        app: matchmaking
+    spec:
+      imagePullSecrets:
+      - name: github
+      containers:
+      - name: matchmaking
+        image: ghcr.io/laerson/mancala:latest-matchmaking
+        ports:
+        - containerPort: 50054
+        env:
+        - name: REDIS_ADDR
+          value: "redis:6379"
+        - name: GAMES_ADDR
+          value: "games:50052"
+        - name: EVENT_BUS_ADDR
+          value: "event-bus:50053"
+        - name: GRPC_PORT
+          value: "50054"
+        - name: MATCH_TIMEOUT_SECONDS
+          value: "30"
+        - name: MAX_QUEUE_SIZE
+          value: "1000"
+        readinessProbe:
+          tcpSocket:
+            port: 50054
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: 50054
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+      initContainers:
+      - name: wait-for-redis
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - "until nc -z redis 6379; do echo waiting for redis; sleep 2; done"
+      - name: wait-for-games
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - "until nc -z games 50052; do echo waiting for games; sleep 2; done"
+      - name: wait-for-event-bus
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - "until nc -z event-bus 50053; do echo waiting for event-bus; sleep 2; done"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: matchmaking
+  labels:
+    app: matchmaking
+spec:
+  ports:
+  - port: 50054
+    targetPort: 50054
+    name: grpc
+  selector:
+    app: matchmaking
+  type: ClusterIP
