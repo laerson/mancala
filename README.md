@@ -1,38 +1,42 @@
 # Mancala Game Services
 
-A distributed Mancala game implementation built with Go and gRPC, featuring separate engine and games services with Redis state management.
+A distributed Mancala game implementation built with Go and gRPC, featuring microservices architecture with engine, games, and matchmaking services, Redis state management, and event streaming.
 
 ## Architecture
 
-The system consists of three main components:
+The system consists of four main components:
 
 - **Engine Service** (`cmd/engine`): Core game logic and move processing
 - **Games Service** (`cmd/games`): Game session management, player validation, and Redis integration
-- **Redis**: Persistent storage for ongoing game sessions
+- **Matchmaking Service** (`cmd/matchmaking`): Player queue management and automatic game matching
+- **Redis**: Persistent storage for game sessions and event streaming via Redis Streams
 
 ```
 ┌─────────────┐    gRPC     ┌─────────────┐    gRPC     ┌─────────────┐
 │   Client    │ ──────────► │    Games    │ ──────────► │   Engine    │
 │             │             │   Service   │             │   Service   │
 └─────────────┘             └─────────────┘             └─────────────┘
-                                    │
-                                    │ Redis
-                                    ▼
-                            ┌─────────────┐
-                            │    Redis    │
-                            │             │
-                            └─────────────┘
+       │                            │
+       │ gRPC                       │ Redis
+       ▼                            ▼
+┌─────────────┐             ┌─────────────┐
+│ Matchmaking │             │    Redis    │
+│   Service   │◄──────────► │  + Streams  │
+└─────────────┘             └─────────────┘
 ```
 
 ## Features
 
 - **Stateless Engine**: Pure game logic with move validation and processing
 - **Stateful Games Service**: Session management with Redis persistence
+- **Intelligent Matchmaking**: FIFO queue-based player matching with automatic game creation
+- **Event Streaming**: Redis Streams for real-time game events and notifications
 - **Player Authentication**: Validates players belong to games and turns
 - **Automatic Cleanup**: Removes finished games from storage
 - **gRPC Interface**: High-performance protocol buffer communication
+- **Comprehensive Testing**: Unit and integration tests with concurrent access validation
 - **Containerized**: Docker images for easy deployment
-- **Kubernetes Ready**: Complete K8s manifests included
+- **Kubernetes Ready**: Complete K8s manifests with private registry support
 
 ## Quick Start
 
@@ -61,7 +65,7 @@ The system consists of three main components:
    protoc --proto_path=. \
      --go_out=. --go_opt=paths=source_relative \
      --go-grpc_out=. --go-grpc_opt=paths=source_relative \
-     proto/engine/engine.proto proto/games/games.proto
+     proto/engine/engine.proto proto/games/games.proto proto/matchmaking/matchmaking.proto
    ```
 
 4. **Run tests**:
@@ -73,6 +77,7 @@ The system consists of three main components:
    ```bash
    go build ./cmd/engine
    go build ./cmd/games
+   go build ./cmd/matchmaking
    ```
 
 ### Local Services Setup
@@ -92,6 +97,12 @@ The system consists of three main components:
    ```bash
    ./games
    # Runs on port 50052, connects to Redis on localhost:6379 and Engine on localhost:50051
+   ```
+
+4. **Start Matchmaking Service**:
+   ```bash
+   ./matchmaking
+   # Runs on port 50054, connects to Redis on localhost:6379 and Games on localhost:50052
    ```
 
 ## Infrastructure as Code Deployment
@@ -129,8 +140,10 @@ This will:
 - ✅ Create OpenStack VM with Ubuntu 22.04
 - ✅ Configure security groups and networking
 - ✅ Install and configure single-node Kubernetes cluster
-- ✅ Deploy Redis, Engine, and Games services
+- ✅ Deploy Redis, Engine, Games, and Matchmaking services
 - ✅ Expose Games service via NodePort (30052)
+- ✅ Expose Matchmaking service via NodePort (30054)
+- ✅ Configure private GitHub Container Registry access
 
 ### IaC Configuration Options
 
@@ -179,9 +192,10 @@ ssh -i ~/.ssh/id_rsa ubuntu@<master-ip>
 # Copy kubectl config locally
 scp -i ~/.ssh/id_rsa ubuntu@<master-ip>:~/.kube/config ~/.kube/config
 
-# Access Games service
-# External: <master-ip>:30052
-# Internal: kubectl port-forward -n mancala svc/games 50052:50052
+# Access services
+# Games service - External: <master-ip>:30052
+# Matchmaking service - External: <master-ip>:30054
+# Internal access: kubectl port-forward -n mancala svc/games 50052:50052
 ```
 
 ## API Reference
@@ -224,6 +238,34 @@ message MakeGameMoveRequest {
 }
 ```
 
+### Matchmaking Service (port 50054)
+
+**Enqueue Player**:
+```protobuf
+service Matchmaking {
+  rpc Enqueue(EnqueueRequest) returns (EnqueueResponse);
+  rpc CancelQueue(CancelQueueRequest) returns (CancelQueueResponse);
+  rpc GetQueueStatus(GetQueueStatusRequest) returns (GetQueueStatusResponse);
+  rpc StreamUpdates(StreamUpdatesRequest) returns (stream UpdateEvent);
+}
+
+message EnqueueRequest {
+  Player player = 1;
+}
+```
+
+**Queue Management**:
+```protobuf
+message CancelQueueRequest {
+  string player_id = 1;
+  string queue_id = 2;
+}
+
+message GetQueueStatusRequest {
+  string player_id = 1;
+}
+```
+
 ## Development
 
 ### Project Structure
@@ -232,13 +274,17 @@ message MakeGameMoveRequest {
 .
 ├── cmd/                    # Service entry points
 │   ├── engine/            # Engine service main
-│   └── games/             # Games service main
+│   ├── games/             # Games service main
+│   └── matchmaking/       # Matchmaking service main
 ├── internal/              # Internal packages
 │   ├── engine/           # Engine business logic
-│   └── games/            # Games business logic, models, storage
+│   ├── games/            # Games business logic, models, storage
+│   ├── matchmaking/      # Matchmaking queue and server logic
+│   └── events/           # Redis Streams event publishing
 ├── proto/                # Protocol buffer definitions
 │   ├── engine/          # Engine service protos
-│   └── games/           # Games service protos
+│   ├── games/           # Games service protos
+│   └── matchmaking/     # Matchmaking service protos
 ├── k8s/                  # Kubernetes manifests
 ├── iac/                  # Infrastructure as Code
 │   ├── terraform/       # OpenStack VM provisioning
@@ -258,6 +304,7 @@ go test -cover ./...
 
 # Run specific package
 go test ./internal/games/...
+go test ./internal/matchmaking/...
 ```
 
 **Integration Tests** (require Docker for testcontainers):
@@ -277,6 +324,9 @@ docker build -f cmd/engine/Dockerfile -t mancala/engine:latest .
 
 # Games service
 docker build -f cmd/games/Dockerfile -t mancala/games:latest .
+
+# Matchmaking service
+docker build -f cmd/matchmaking/Dockerfile -t mancala/matchmaking:latest .
 ```
 
 ## Kubernetes Deployment
@@ -295,6 +345,7 @@ kubectl get all -n mancala
 
 # Port forward for local access
 kubectl port-forward -n mancala svc/games 50052:50052
+kubectl port-forward -n mancala svc/matchmaking 50054:50054
 ```
 
 ### Configuration
@@ -304,6 +355,10 @@ Services are configured via environment variables:
 **Games Service**:
 - `REDIS_ADDR`: Redis connection string (default: "localhost:6379")
 - `ENGINE_ADDR`: Engine service address (default: "localhost:50051")
+
+**Matchmaking Service**:
+- `REDIS_ADDR`: Redis connection string (default: "localhost:6379")
+- `GAMES_ADDR`: Games service address (default: "localhost:50052")
 
 ## Game Rules
 
@@ -338,6 +393,7 @@ kubectl get pods -n mancala
 # Check service logs
 kubectl logs -n mancala deployment/games
 kubectl logs -n mancala deployment/engine
+kubectl logs -n mancala deployment/matchmaking
 ```
 
 **Redis Connection Issues**:
