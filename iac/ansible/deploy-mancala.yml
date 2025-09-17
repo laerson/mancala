@@ -1,0 +1,144 @@
+---
+- name: Deploy Mancala application to Kubernetes
+  hosts: k8s_master
+  become: no
+  vars:
+    app_namespace: mancala
+    kubeconfig_path: "/home/{{ ansible_user }}/.kube/config"
+    # Docker config for GitHub Container Registry
+    docker_config_json: |
+      {
+        "auths": {
+          "ghcr.io": {
+            "username": "{{ github_username }}",
+            "password": "{{ github_token }}",
+            "auth": "{{ (github_username + ':' + github_token) | b64encode }}"
+          }
+        }
+      }
+
+  tasks:
+    - name: Create mancala namespace
+      kubernetes.core.k8s:
+        name: "{{ app_namespace }}"
+        api_version: v1
+        kind: Namespace
+        state: present
+        kubeconfig: "{{ kubeconfig_path }}"
+
+    - name: Create Docker registry secret
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: github
+            namespace: "{{ app_namespace }}"
+          type: kubernetes.io/dockerconfigjson
+          data:
+            .dockerconfigjson: "{{ docker_config_json | b64encode }}"
+        kubeconfig: "{{ kubeconfig_path }}"
+
+    - name: Deploy Redis
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('file', '../../k8s/redis.yaml') | from_yaml_all | list }}"
+        namespace: "{{ app_namespace }}"
+        kubeconfig: "{{ kubeconfig_path }}"
+
+    - name: Deploy Engine service
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('file', '../../k8s/engine.yaml') | from_yaml_all | list }}"
+        namespace: "{{ app_namespace }}"
+        kubeconfig: "{{ kubeconfig_path }}"
+
+    - name: Deploy Games service
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('file', '../../k8s/games.yaml') | from_yaml_all | list }}"
+        namespace: "{{ app_namespace }}"
+        kubeconfig: "{{ kubeconfig_path }}"
+
+    - name: Check deployment status
+      shell: kubectl get deployments -n {{ app_namespace }} -o wide
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: deployment_check
+      failed_when: false
+
+    - name: Display deployment check
+      debug:
+        var: deployment_check.stdout_lines
+
+    - name: Check pod status
+      shell: kubectl get pods -n {{ app_namespace }} -o wide
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: pod_check
+      failed_when: false
+
+    - name: Display pod status
+      debug:
+        var: pod_check.stdout_lines
+
+    - name: Describe problematic pods (if any)
+      shell: kubectl describe pods -n {{ app_namespace }}
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: pod_describe
+      failed_when: false
+
+    - name: Display pod descriptions
+      debug:
+        var: pod_describe.stdout_lines
+
+    - name: Get deployment status
+      shell: kubectl get all -n {{ app_namespace }}
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: deployment_status
+
+    - name: Display deployment status
+      debug:
+        var: deployment_status.stdout_lines
+
+    - name: Create NodePort service for games (for external access)
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: games-nodeport
+            namespace: "{{ app_namespace }}"
+            labels:
+              app: games
+          spec:
+            type: NodePort
+            ports:
+            - port: 50052
+              targetPort: 50052
+              nodePort: 30052
+              name: grpc
+            selector:
+              app: games
+        kubeconfig: "{{ kubeconfig_path }}"
+
+    - name: Get service endpoints
+      shell: kubectl get svc -n {{ app_namespace }}
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      register: service_status
+
+    - name: Display service status
+      debug:
+        var: service_status.stdout_lines
+
+    - name: Display access information
+      debug:
+        msg:
+          - "Mancala services deployed successfully!"
+          - "Games service accessible at: {{ ansible_default_ipv4.address }}:30052"
+          - "Use kubectl port-forward for local access to other services"
