@@ -33,3 +33,10 @@ jobs:
           file: ./cmd/games/Dockerfile
           push: true
           tags: ghcr.io/laerson/mancala:latest-games
+
+      - name: Build and push matchmaking image
+        uses: docker/build-push-action@v6
+        with:
+          file: ./cmd/matchmaking/Dockerfile
+          push: true
+          tags: ghcr.io/laerson/mancala:latest-matchmaking
