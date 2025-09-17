@@ -9,7 +9,6 @@ option go_package = "github.com/laerson/mancala/proto/matchmaking;matchmakingpb"
 message Player {
     string id = 1;
     string name = 2;
-    int32 skill_rating = 3; // Optional: for skill-based matching
 }
 
 // Matchmaking queue status
@@ -52,7 +51,6 @@ message GetQueueStatusRequest {
 message GetQueueStatusResponse {
     QueueStatus status = 1;
     int32 queue_position = 2;
-    int32 estimated_wait_time_seconds = 3;
     string game_id = 4; // Set when status is GAME_CREATED
 }
 
