@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/laerson/mancala/internal/mancala"
 	"github.com/spf13/cobra"
 )
 

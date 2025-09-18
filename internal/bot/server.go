@@ -5,11 +5,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	botpb "github.com/laerson/mancala/proto/bot"
-	enginepb "github.com/laerson/mancala/proto/engine"
 )
 
 // Server implements the Bot gRPC service

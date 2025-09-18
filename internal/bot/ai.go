@@ -27,7 +27,7 @@ func NewAIEngine() *AIEngine {
 func (ai *AIEngine) CalculateMove(gameState *enginepb.GameState, difficulty botpb.BotDifficulty, botPlayerID string) (uint32, string, int32, error) {
 	// Determine which player the bot is (Player 1 or Player 2)
 	botPlayer := ai.getBotPlayer(gameState, botPlayerID)
-	if botPlayer == enginepb.Player_PLAYER_UNSPECIFIED {
+	if botPlayer != enginepb.Player_PLAYER_ONE && botPlayer != enginepb.Player_PLAYER_TWO {
 		return 0, "", 0, fmt.Errorf("bot player not found in game state")
 	}
 
