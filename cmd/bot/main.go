@@ -9,23 +9,15 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/laerson/mancala/internal/auth"
-	"github.com/laerson/mancala/internal/matchmaking"
+	"github.com/laerson/mancala/internal/bot"
 	authpb "github.com/laerson/mancala/proto/auth"
 	botpb "github.com/laerson/mancala/proto/bot"
-	gamespb "github.com/laerson/mancala/proto/games"
-	matchmakingpb "github.com/laerson/mancala/proto/matchmaking"
 )
 
 func main() {
 	port := os.Getenv("GRPC_PORT")
 	if port == "" {
-		port = "50054"
-	}
-
-	// Create gRPC connections
-	gamesAddr := os.Getenv("GAMES_ADDR")
-	if gamesAddr == "" {
-		gamesAddr = "games:50052"
+		port = "50057"
 	}
 
 	authAddr := os.Getenv("AUTH_ADDR")
@@ -33,28 +25,11 @@ func main() {
 		authAddr = "auth:50055"
 	}
 
-	redisAddr := os.Getenv("REDIS_ADDR")
-	if redisAddr == "" {
-		redisAddr = "redis:6379"
-	}
-
-	botAddr := os.Getenv("BOT_ADDR")
-	if botAddr == "" {
-		botAddr = "bot:50057"
-	}
-
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		jwtSecret = "mancala-jwt-secret-key-change-in-production"
 		log.Println("Warning: Using default JWT secret. Set JWT_SECRET environment variable in production!")
 	}
-
-	// Connect to Games service
-	gamesConn, err := grpc.NewClient(gamesAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Fatalf("Failed to connect to games service: %v", err)
-	}
-	defer gamesConn.Close()
 
 	// Connect to Auth service
 	authConn, err := grpc.NewClient(authAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -68,24 +43,8 @@ func main() {
 		defer authConn.Close()
 	}
 
-	// Connect to Bot service
-	botConn, err := grpc.NewClient(botAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Printf("Warning: Failed to connect to bot service: %v", err)
-		log.Println("Bot matches will not be available")
-	}
-	var botClient botpb.BotClient
-	if botConn != nil {
-		botClient = botpb.NewBotClient(botConn)
-		defer botConn.Close()
-	}
-
-	// Create server
-	server := matchmaking.NewServer(
-		gamespb.NewGamesClient(gamesConn),
-		botClient,
-		redisAddr,
-	)
+	// Create bot server
+	botServer := bot.NewServer()
 
 	// Create auth interceptor
 	authInterceptor := auth.NewAuthInterceptor(authClient, jwtSecret)
@@ -100,13 +59,10 @@ func main() {
 		grpc.UnaryInterceptor(authInterceptor.UnaryInterceptor()),
 		grpc.StreamInterceptor(authInterceptor.StreamInterceptor()),
 	)
-	matchmakingpb.RegisterMatchmakingServer(grpcServer, server)
+	botpb.RegisterBotServer(grpcServer, botServer)
 
-	log.Printf("Matchmaking service listening on port %s", port)
-	log.Printf("Connected to Games service at %s", gamesAddr)
+	log.Printf("Bot service listening on port %s", port)
 	log.Printf("Connected to Auth service at %s", authAddr)
-	log.Printf("Connected to Bot service at %s", botAddr)
-	log.Printf("Connected to Redis at %s", redisAddr)
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("Failed to serve: %v", err)
 	}

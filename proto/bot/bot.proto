@@ -1,0 +1,84 @@
+syntax = "proto3";
+package proto.bot;
+
+import "proto/engine/engine.proto";
+
+option go_package = "github.com/laerson/mancala/proto/bot;botpb";
+
+// Bot difficulty levels
+enum BotDifficulty {
+    BOT_DIFFICULTY_UNSPECIFIED = 0;
+    BOT_DIFFICULTY_EASY = 1;        // Random valid moves
+    BOT_DIFFICULTY_MEDIUM = 2;      // Basic strategy (captures, extra turns)
+    BOT_DIFFICULTY_HARD = 3;        // Advanced AI (minimax with pruning)
+}
+
+// Bot profile information
+message BotProfile {
+    string id = 1;                  // Unique bot ID
+    string name = 2;                // Display name (e.g., "MancalaBot Easy")
+    BotDifficulty difficulty = 3;   // Difficulty level
+    string description = 4;         // Bot description
+    int32 wins = 5;                 // Total wins (for display)
+    int32 losses = 6;               // Total losses (for display)
+}
+
+// Request to get an optimal move for the bot
+message GetMoveRequest {
+    proto.engine.GameState game_state = 1;     // Current game state
+    BotDifficulty difficulty = 2;               // Bot difficulty level
+    string bot_id = 3;                          // Bot player ID
+    int32 time_limit_ms = 4;                    // Optional: time limit for move calculation
+}
+
+// Response containing the bot's chosen move
+message GetMoveResponse {
+    oneof result {
+        MoveResult move = 1;
+        Error error = 2;
+    }
+}
+
+message MoveResult {
+    uint32 pit_index = 1;           // The pit the bot chooses to play
+    string reasoning = 2;           // Optional: explanation of why this move was chosen
+    int32 evaluation_score = 3;     // Optional: bot's evaluation of the position
+}
+
+message Error {
+    string message = 1;
+    string code = 2;
+}
+
+// Request to list available bots
+message ListBotsRequest {
+    // Empty - returns all available bots
+}
+
+// Response with available bot profiles
+message ListBotsResponse {
+    repeated BotProfile bots = 1;
+}
+
+// Request to create a bot player for a game
+message CreateBotRequest {
+    BotDifficulty difficulty = 1;
+    string name_suffix = 2;         // Optional: custom suffix for bot name
+}
+
+// Response with created bot information
+message CreateBotResponse {
+    BotProfile bot = 1;
+}
+
+// Bot service definition
+service Bot {
+    // Get the next move for a bot player
+    rpc GetMove(GetMoveRequest) returns (GetMoveResponse);
+
+    // List all available bot difficulties/profiles
+    rpc ListBots(ListBotsRequest) returns (ListBotsResponse);
+
+    // Create a bot player instance
+    rpc CreateBot(CreateBotRequest) returns (CreateBotResponse);
+}

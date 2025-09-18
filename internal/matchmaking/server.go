@@ -12,6 +12,7 @@ import (
 
 	"github.com/laerson/mancala/internal/auth"
 	"github.com/laerson/mancala/internal/events"
+	botpb "github.com/laerson/mancala/proto/bot"
 	gamespb "github.com/laerson/mancala/proto/games"
 	matchmakingpb "github.com/laerson/mancala/proto/matchmaking"
 )
@@ -20,13 +21,15 @@ type Server struct {
 	matchmakingpb.UnimplementedMatchmakingServer
 	queue          *PlayerQueue
 	gamesClient    gamespb.GamesClient
+	botClient      botpb.BotClient
 	eventPublisher *events.EventPublisher
 }
 
-func NewServer(gamesClient gamespb.GamesClient, redisAddr string) *Server {
+func NewServer(gamesClient gamespb.GamesClient, botClient botpb.BotClient, redisAddr string) *Server {
 	server := &Server{
 		queue:          NewPlayerQueue(),
 		gamesClient:    gamesClient,
+		botClient:      botClient,
 		eventPublisher: events.NewEventPublisher(redisAddr),
 	}
 
@@ -211,4 +214,88 @@ func (s *Server) notifyPlayerMatch(player, opponent *QueuedPlayer, game *gamespb
 			},
 		})
 	}
+}
+
+func (s *Server) BotMatch(ctx context.Context, req *matchmakingpb.BotMatchRequest) (*matchmakingpb.BotMatchResponse, error) {
+	if req.Player == nil {
+		return nil, status.Errorf(codes.InvalidArgument, "player is required")
+	}
+
+	if req.Player.Id == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "player ID is required")
+	}
+
+	if req.Player.Name == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "player name is required")
+	}
+
+	if req.BotDifficulty == "" {
+		req.BotDifficulty = "medium" // Default to medium difficulty
+	}
+
+	// Validate that the authenticated user owns this player ID
+	if err := auth.ValidatePlayerOwnership(ctx, req.Player.Id); err != nil {
+		return nil, err
+	}
+
+	// Map string difficulty to proto enum
+	var botDifficulty botpb.BotDifficulty
+	switch req.BotDifficulty {
+	case "easy":
+		botDifficulty = botpb.BotDifficulty_BOT_DIFFICULTY_EASY
+	case "medium":
+		botDifficulty = botpb.BotDifficulty_BOT_DIFFICULTY_MEDIUM
+	case "hard":
+		botDifficulty = botpb.BotDifficulty_BOT_DIFFICULTY_HARD
+	default:
+		return &matchmakingpb.BotMatchResponse{
+			Success: false,
+			Message: fmt.Sprintf("Invalid difficulty '%s'. Use 'easy', 'medium', or 'hard'", req.BotDifficulty),
+		}, nil
+	}
+
+	// Check if bot service is available
+	if s.botClient == nil {
+		return &matchmakingpb.BotMatchResponse{
+			Success: false,
+			Message: "Bot service is not available",
+		}, nil
+	}
+
+	// Create a bot opponent
+	botResp, err := s.botClient.CreateBot(ctx, &botpb.CreateBotRequest{
+		Difficulty: botDifficulty,
+	})
+	if err != nil {
+		log.Printf("Failed to create bot: %v", err)
+		return &matchmakingpb.BotMatchResponse{
+			Success: false,
+			Message: "Failed to create bot opponent",
+		}, nil
+	}
+
+	// Create game via Games service with bot as player 2
+	gameReq := &gamespb.CreateGameRequest{
+		Player1Id: req.Player.Id,
+		Player2Id: botResp.Bot.Id,
+	}
+
+	gameResp, err := s.gamesClient.Create(ctx, gameReq)
+	if err != nil {
+		log.Printf("Failed to create bot game: %v", err)
+		return &matchmakingpb.BotMatchResponse{
+			Success: false,
+			Message: "Failed to create game",
+		}, nil
+	}
+
+	log.Printf("Bot game created: %s (Player: %s vs Bot: %s)", gameResp.Game.Id, req.Player.Name, botResp.Bot.Name)
+
+	return &matchmakingpb.BotMatchResponse{
+		Success: true,
+		GameId:  gameResp.Game.Id,
+		Message: fmt.Sprintf("Bot match created! Playing against %s", botResp.Bot.Name),
+		BotId:   botResp.Bot.Id,
+		BotName: botResp.Bot.Name,
+	}, nil
 }

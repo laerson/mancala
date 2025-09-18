@@ -98,3 +98,47 @@ func (h *MatchmakingHandlers) GetQueueStatus(c *gin.Context) {
 		"queue_position": resp.QueuePosition,
 	})
 }
+
+// BotMatchRequest represents a bot match request
+type BotMatchRequest struct {
+	PlayerID      string `json:"player_id" binding:"required"`
+	PlayerName    string `json:"player_name" binding:"required"`
+	BotDifficulty string `json:"bot_difficulty" binding:"required"`
+}
+
+// BotMatch handles bot match creation
+func (h *MatchmakingHandlers) BotMatch(c *gin.Context) {
+	var req BotMatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate difficulty
+	if req.BotDifficulty != "easy" && req.BotDifficulty != "medium" && req.BotDifficulty != "hard" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid difficulty. Use 'easy', 'medium', or 'hard'"})
+		return
+	}
+
+	// Call Matchmaking service
+	resp, err := h.clients.Matchmaking.BotMatch(addGRPCContext(c), &matchmakingpb.BotMatchRequest{
+		Player: &matchmakingpb.Player{
+			Id:   req.PlayerID,
+			Name: req.PlayerName,
+		},
+		BotDifficulty: req.BotDifficulty,
+	})
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create bot match"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":  resp.Success,
+		"game_id":  resp.GameId,
+		"message":  resp.Message,
+		"bot_id":   resp.BotId,
+		"bot_name": resp.BotName,
+	})
+}

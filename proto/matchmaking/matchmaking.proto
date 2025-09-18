@@ -24,6 +24,20 @@ message EnqueueRequest {
     Player player = 1;
 }
 
+// Bot match request
+message BotMatchRequest {
+    Player player = 1;
+    string bot_difficulty = 2; // "easy", "medium", "hard"
+}
+
+message BotMatchResponse {
+    bool success = 1;
+    string game_id = 2;
+    string message = 3;
+    string bot_id = 4;
+    string bot_name = 5;
+}
+
 message EnqueueResponse {
     bool success = 1;
     string queue_id = 2;
@@ -101,6 +115,9 @@ message StreamUpdatesRequest {
 service Matchmaking {
     // Enqueue a player for matchmaking
     rpc Enqueue(EnqueueRequest) returns (EnqueueResponse);
+
+    // Create a bot match immediately
+    rpc BotMatch(BotMatchRequest) returns (BotMatchResponse);
 
     // Cancel matchmaking queue
     rpc CancelQueue(CancelQueueRequest) returns (CancelQueueResponse);

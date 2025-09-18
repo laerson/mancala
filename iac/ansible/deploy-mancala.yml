@@ -95,6 +95,13 @@
         namespace: "{{ app_namespace }}"
         kubeconfig: "{{ kubeconfig_path }}"
 
+    - name: Deploy Bot service
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('file', '../../k8s/bot.yaml') | from_yaml_all | list }}"
+        namespace: "{{ app_namespace }}"
+        kubeconfig: "{{ kubeconfig_path }}"
+
     - name: Deploy Notifications service
       kubernetes.core.k8s:
         state: present
@@ -192,5 +199,5 @@
           - "💡 The API Gateway is the only externally accessible service"
           - "💡 CLI client should connect to: {{ ansible_default_ipv4.address }}:30080"
           - "💡 All other services are internal and accessed through the gateway"
-          - "🔒 Internal services: Auth, Games, Matchmaking, Notifications, Engine"
+          - "🔒 Internal services: Auth, Games, Matchmaking, Bot, Notifications, Engine"
           - "Use kubectl port-forward if you need direct access to internal services"
