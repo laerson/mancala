@@ -13,22 +13,22 @@ import (
 	authpb "github.com/laerson/mancala/proto/auth"
 )
 
-// AuthInterceptor provides JWT authentication for gRPC services
-type AuthInterceptor struct {
+// Interceptor provides JWT authentication for gRPC services
+type Interceptor struct {
 	authClient authpb.AuthClient
 	jwtManager *JWTManager
 }
 
 // NewAuthInterceptor creates a new auth interceptor
-func NewAuthInterceptor(authClient authpb.AuthClient, jwtSecret string) *AuthInterceptor {
-	return &AuthInterceptor{
+func NewAuthInterceptor(authClient authpb.AuthClient, jwtSecret string) *Interceptor {
+	return &Interceptor{
 		authClient: authClient,
 		jwtManager: NewJWTManager(jwtSecret, 24*3600, 7*24*3600), // Same config as auth service
 	}
 }
 
 // UnaryInterceptor returns a gRPC unary server interceptor for JWT authentication
-func (interceptor *AuthInterceptor) UnaryInterceptor() grpc.UnaryServerInterceptor {
+func (interceptor *Interceptor) UnaryInterceptor() grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
 		req interface{},
@@ -53,7 +53,7 @@ func (interceptor *AuthInterceptor) UnaryInterceptor() grpc.UnaryServerIntercept
 }
 
 // StreamInterceptor returns a gRPC stream server interceptor for JWT authentication
-func (interceptor *AuthInterceptor) StreamInterceptor() grpc.StreamServerInterceptor {
+func (interceptor *Interceptor) StreamInterceptor() grpc.StreamServerInterceptor {
 	return func(
 		srv interface{},
 		stream grpc.ServerStream,
@@ -83,7 +83,7 @@ func (interceptor *AuthInterceptor) StreamInterceptor() grpc.StreamServerInterce
 }
 
 // validateTokenFromContext extracts and validates JWT token from gRPC metadata
-func (interceptor *AuthInterceptor) validateTokenFromContext(ctx context.Context) (string, error) {
+func (interceptor *Interceptor) validateTokenFromContext(ctx context.Context) (string, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return "", status.Errorf(codes.Unauthenticated, "missing metadata")
@@ -113,7 +113,7 @@ func (interceptor *AuthInterceptor) validateTokenFromContext(ctx context.Context
 }
 
 // validateWithAuthService validates token via auth service
-func (interceptor *AuthInterceptor) validateWithAuthService(ctx context.Context, token string) (string, error) {
+func (interceptor *Interceptor) validateWithAuthService(ctx context.Context, token string) (string, error) {
 	if interceptor.authClient == nil {
 		return "", status.Errorf(codes.Unauthenticated, "invalid token")
 	}
@@ -133,7 +133,7 @@ func (interceptor *AuthInterceptor) validateWithAuthService(ctx context.Context,
 }
 
 // isExemptMethod checks if a method should skip authentication
-func (interceptor *AuthInterceptor) isExemptMethod(method string) bool {
+func (interceptor *Interceptor) isExemptMethod(method string) bool {
 	exemptMethods := []string{
 		// Health checks
 		"/grpc.health.v1.Health/Check",
