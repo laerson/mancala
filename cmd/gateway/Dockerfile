@@ -6,11 +6,11 @@ WORKDIR /app
 
 COPY go.mod go.sum ./
 RUN go mod download
-COPY cmd/notifications ./cmd/notifications
+COPY cmd/gateway ./cmd/gateway
 COPY internal ./internal
 COPY proto ./proto
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o notifications ./cmd/notifications/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o gateway ./cmd/gateway/main.go
 
 FROM builder AS test
 RUN go test -v ./...
@@ -19,9 +19,9 @@ FROM gcr.io/distroless/base-debian11 AS release
 
 WORKDIR /
 
-COPY --from=builder /app/notifications .
+COPY --from=builder /app/gateway .
 
-EXPOSE 50056
+EXPOSE 8080
 
 USER nonroot:nonroot
-CMD ["./notifications"]
+CMD ["./gateway"]

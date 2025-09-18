@@ -1,0 +1,125 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  labels:
+    app: gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      imagePullSecrets:
+      - name: github
+      containers:
+      - name: gateway
+        image: ghcr.io/laerson/mancala:latest-gateway
+        ports:
+        - containerPort: 8080
+        env:
+        - name: HTTP_PORT
+          value: "8080"
+        - name: AUTH_ADDR
+          value: "auth:50055"
+        - name: GAMES_ADDR
+          value: "games:50052"
+        - name: MATCHMAKING_ADDR
+          value: "matchmaking:50054"
+        - name: NOTIFICATIONS_ADDR
+          value: "notifications:50056"
+        - name: ENGINE_ADDR
+          value: "engine:50051"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: auth-secrets
+              key: jwt-secret
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+      initContainers:
+      - name: wait-for-auth
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - "until nc -z auth 50055; do echo waiting for auth; sleep 2; done"
+      - name: wait-for-games
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - "until nc -z games 50052; do echo waiting for games; sleep 2; done"
+      - name: wait-for-matchmaking
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - "until nc -z matchmaking 50054; do echo waiting for matchmaking; sleep 2; done"
+      - name: wait-for-notifications
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - "until nc -z notifications 50056; do echo waiting for notifications; sleep 2; done"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  labels:
+    app: gateway
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: http
+  selector:
+    app: gateway
+  type: ClusterIP
+---
+# Ingress for external access
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mancala-ingress
+  labels:
+    app: mancala
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
+spec:
+  rules:
+  - host: mancala.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: gateway
+            port:
+              number: 8080
