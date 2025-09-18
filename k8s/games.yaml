@@ -26,6 +26,13 @@ spec:
           value: "redis:6379"
         - name: ENGINE_ADDR
           value: "engine:50051"
+        - name: AUTH_ADDR
+          value: "auth:50055"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: auth-secrets
+              key: jwt-secret
         readinessProbe:
           tcpSocket:
             port: 50052
@@ -56,6 +63,12 @@ spec:
         - sh
         - -c
         - "until nc -z engine 50051; do echo waiting for engine; sleep 2; done"
+      - name: wait-for-auth
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - "until nc -z auth 50055; do echo waiting for auth; sleep 2; done"
 ---
 apiVersion: v1
 kind: Service
