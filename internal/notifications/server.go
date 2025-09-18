@@ -1,7 +1,6 @@
 package notifications
 
 import (
-	"context"
 	"log"
 
 	"github.com/laerson/mancala/internal/auth"

@@ -1,9 +1,9 @@
 syntax = "proto3";
 
-package notifications;
-option go_package = "github.com/laerson/mancala/proto/notifications";
+package proto.notifications;
+option go_package = "github.com/laerson/mancala/proto/notifications;notificationspb";
 
-import "engine/engine.proto";
+import "proto/engine/engine.proto";
 
 // Notification service provides real-time notifications to clients
 service Notifications {
@@ -51,13 +51,13 @@ message MatchFoundNotification {
 message MoveMadeNotification {
   string player_id = 1;
   uint32 pit_index = 2;
-  engine.GameState game_state = 3;
-  engine.MoveResult move_result = 4;
+  proto.engine.GameState game_state = 3;
+  proto.engine.MoveResult move_result = 4;
 }
 
 // Game over notification data
 message GameOverNotification {
-  engine.GameState final_state = 1;
+  proto.engine.GameState final_state = 1;
   string winner_id = 2;
   bool is_draw = 3;
 }
