@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package notifications;
+option go_package = "github.com/laerson/mancala/proto/notifications";
+
+import "engine/engine.proto";
+
+// Notification service provides real-time notifications to clients
+service Notifications {
+  // Subscribe to notifications for a specific player
+  rpc Subscribe(SubscribeRequest) returns (stream Notification);
+}
+
+// Request to subscribe to notifications
+message SubscribeRequest {
+  string player_id = 1;
+}
+
+// Notification message sent to clients
+message Notification {
+  string id = 1;
+  NotificationType type = 2;
+  string game_id = 3;
+  int64 timestamp = 4;
+
+  oneof data {
+    MatchFoundNotification match_found = 5;
+    MoveMadeNotification move_made = 6;
+    GameOverNotification game_over = 7;
+  }
+}
+
+// Notification types
+enum NotificationType {
+  NOTIFICATION_TYPE_UNSPECIFIED = 0;
+  NOTIFICATION_TYPE_MATCH_FOUND = 1;
+  NOTIFICATION_TYPE_MOVE_MADE = 2;
+  NOTIFICATION_TYPE_GAME_OVER = 3;
+}
+
+// Match found notification data
+message MatchFoundNotification {
+  string match_id = 1;
+  string player1_id = 2;
+  string player1_name = 3;
+  string player2_id = 4;
+  string player2_name = 5;
+}
+
+// Move made notification data
+message MoveMadeNotification {
+  string player_id = 1;
+  uint32 pit_index = 2;
+  engine.GameState game_state = 3;
+  engine.MoveResult move_result = 4;
+}
+
+// Game over notification data
+message GameOverNotification {
+  engine.GameState final_state = 1;
+  string winner_id = 2;
+  bool is_draw = 3;
+}
