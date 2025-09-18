@@ -40,3 +40,31 @@ jobs:
           file: ./cmd/matchmaking/Dockerfile
           push: true
           tags: ghcr.io/laerson/mancala:latest-matchmaking
+
+      - name: Build and push auth image
+        uses: docker/build-push-action@v6
+        with:
+          file: ./cmd/auth/Dockerfile
+          push: true
+          tags: ghcr.io/laerson/mancala:latest-auth
+
+      - name: Build and push gateway image
+        uses: docker/build-push-action@v6
+        with:
+          file: ./cmd/gateway/Dockerfile
+          push: true
+          tags: ghcr.io/laerson/mancala:latest-gateway
+
+      - name: Build and push mancala image
+        uses: docker/build-push-action@v6
+        with:
+          file: ./cmd/mancala/Dockerfile
+          push: true
+          tags: ghcr.io/laerson/mancala:latest-mancala
+
+      - name: Build and push notifications image
+        uses: docker/build-push-action@v6
+        with:
+          file: ./cmd/notifications/Dockerfile
+          push: true
+          tags: ghcr.io/laerson/mancala:latest-notifications
