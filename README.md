@@ -4,25 +4,42 @@ A distributed Mancala game implementation built with Go and gRPC, featuring micr
 
 ## Architecture
 
-The system consists of four main components:
+The system consists of seven main components:
 
 - **Engine Service** (`cmd/engine`): Core game logic and move processing
 - **Games Service** (`cmd/games`): Game session management, player validation, and Redis integration
 - **Matchmaking Service** (`cmd/matchmaking`): Player queue management and automatic game matching
+- **Auth Service** (`cmd/auth`): User authentication and JWT token management
+- **Notifications Service** (`cmd/notifications`): Real-time event notifications via Server-Sent Events
+- **API Gateway** (`cmd/gateway`): HTTP REST API gateway providing unified client access
+- **CLI Client** (`cmd/mancala`): Command-line client for playing games
 - **Redis**: Persistent storage for game sessions and event streaming via Redis Streams
 
 ```
-┌─────────────┐    gRPC     ┌─────────────┐    gRPC     ┌─────────────┐
-│   Client    │ ──────────► │    Games    │ ──────────► │   Engine    │
-│             │             │   Service   │             │   Service   │
-└─────────────┘             └─────────────┘             └─────────────┘
-       │                            │
-       │ gRPC                       │ Redis
-       ▼                            ▼
-┌─────────────┐             ┌─────────────┐
-│ Matchmaking │             │    Redis    │
-│   Service   │◄──────────► │  + Streams  │
-└─────────────┘             └─────────────┘
+┌─────────────┐     HTTP      ┌─────────────┐     gRPC     ┌─────────────┐
+│ CLI Client  │ ────────────► │ API Gateway │ ────────────► │ Auth Service│
+│  (mancala)  │               │   (HTTP)    │               │   (JWT)     │
+└─────────────┘               └─────────────┘               └─────────────┘
+                                     │
+                                     │ gRPC
+                                     ▼
+                              ┌─────────────┐     gRPC     ┌─────────────┐
+                              │   Games     │ ────────────► │   Engine    │
+                              │  Service    │               │  Service    │
+                              └─────────────┘               └─────────────┘
+                                     │                             │
+                                     │                             │
+                              ┌─────────────┐               ┌─────────────┐
+                              │Matchmaking  │               │Notifications│
+                              │  Service    │               │  Service    │
+                              └─────────────┘               └─────────────┘
+                                     │                             │
+                                     │ Redis                       │ SSE
+                                     ▼                             ▼
+                              ┌─────────────┐               ┌─────────────┐
+                              │    Redis    │               │   Events    │
+                              │ + Streams   │◄──────────────│   Stream    │
+                              └─────────────┘               └─────────────┘
 ```
 
 ## Features
@@ -37,6 +54,10 @@ The system consists of four main components:
 - **Comprehensive Testing**: Unit and integration tests with concurrent access validation
 - **Containerized**: Docker images for easy deployment
 - **Kubernetes Ready**: Complete K8s manifests with private registry support
+- **JWT Authentication**: Secure user authentication with token-based authorization
+- **Real-time Notifications**: Server-Sent Events for live game updates
+- **HTTP REST API**: Gateway providing unified access to all services
+- **CLI Client**: Full-featured command-line interface for gameplay
 
 ## Quick Start
 
@@ -46,6 +67,32 @@ The system consists of four main components:
 - Docker
 - Kubernetes cluster (optional)
 - Redis (for games service)
+
+### CLI Client (Recommended)
+
+The easiest way to play Mancala is using the command-line client:
+
+1. **Build the client**:
+   ```bash
+   go build -o mancala cmd/mancala/main.go
+   ```
+
+2. **Connect to server**:
+   ```bash
+   ./mancala connect <server-ip>
+   ```
+
+3. **Create account**:
+   ```bash
+   ./mancala register
+   ```
+
+4. **Play a game**:
+   ```bash
+   ./mancala play
+   ```
+
+📚 **Full CLI documentation**: [docs/CLI_CLIENT.md](docs/CLI_CLIENT.md)
 
 ### Local Development
 
@@ -78,6 +125,10 @@ The system consists of four main components:
    go build ./cmd/engine
    go build ./cmd/games
    go build ./cmd/matchmaking
+   go build ./cmd/auth
+   go build ./cmd/notifications
+   go build ./cmd/gateway
+   go build ./cmd/mancala
    ```
 
 ### Local Services Setup
@@ -371,16 +422,6 @@ Mancala is a traditional board game with the following rules implemented:
 5. **Extra Turn**: Landing in own store grants another turn
 6. **Winning**: Game ends when one side is empty, most seeds wins
 
-## Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Make changes with tests
-4. Run tests (`go test ./...`)
-5. Commit changes (`git commit -m 'Add amazing feature'`)
-6. Push to branch (`git push origin feature/amazing-feature`)
-7. Open Pull Request
-
 ## Troubleshooting
 
 ### Common Issues
@@ -413,14 +454,3 @@ cd iac/terraform && terraform show
 # Test Ansible connectivity
 cd iac/ansible && ansible all -m ping
 ```
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- Built with [gRPC](https://grpc.io/) and [Protocol Buffers](https://developers.google.com/protocol-buffers)
-- Uses [testcontainers-go](https://github.com/testcontainers/testcontainers-go) for integration testing
-- Infrastructure provisioning with [Terraform](https://terraform.io/) and [Ansible](https://ansible.com/)
-- Container orchestration with [Kubernetes](https://kubernetes.io/)
