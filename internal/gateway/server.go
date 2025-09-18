@@ -97,6 +97,7 @@ func (s *Server) setupRoutes() {
 	matchmakingGroup := protected.Group("/matchmaking")
 	{
 		matchmakingGroup.POST("/enqueue", matchmakingHandlers.Enqueue)
+		matchmakingGroup.POST("/bot", matchmakingHandlers.BotMatch)
 		matchmakingGroup.DELETE("/queue/:player_id", matchmakingHandlers.CancelQueue)
 		matchmakingGroup.GET("/queue/:player_id/status", matchmakingHandlers.GetQueueStatus)
 	}

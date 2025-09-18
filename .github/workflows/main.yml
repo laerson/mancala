@@ -68,3 +68,10 @@ jobs:
           file: ./cmd/notifications/Dockerfile
           push: true
           tags: ghcr.io/laerson/mancala:latest-notifications
+
+      - name: Build and push bot image
+        uses: docker/build-push-action@v6
+        with:
+          file: ./cmd/bot/Dockerfile
+          push: true
+          tags: ghcr.io/laerson/mancala:latest-bot

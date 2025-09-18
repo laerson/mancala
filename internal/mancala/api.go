@@ -102,6 +102,22 @@ type MakeMoveResponse struct {
 	Error   string      `json:"error,omitempty"`
 }
 
+// BotMatchRequest represents a bot match request
+type BotMatchRequest struct {
+	PlayerID      string `json:"player_id"`
+	PlayerName    string `json:"player_name"`
+	BotDifficulty string `json:"bot_difficulty"`
+}
+
+// BotMatchResponse represents a bot match response
+type BotMatchResponse struct {
+	Success bool   `json:"success"`
+	GameID  string `json:"game_id"`
+	Message string `json:"message"`
+	BotID   string `json:"bot_id"`
+	BotName string `json:"bot_name"`
+}
+
 // Register registers a new user account
 func (c *APIClient) Register(username, password string) (*RegisterResponse, error) {
 	req := RegisterRequest{
@@ -196,6 +212,27 @@ func (c *APIClient) MakeMove(gameID, playerID string, pitIndex uint32) (*MakeMov
 	}
 
 	var result MakeMoveResponse
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
+// BotMatch creates a match against a bot opponent
+func (c *APIClient) BotMatch(playerID, playerName, botDifficulty string) (*BotMatchResponse, error) {
+	req := BotMatchRequest{
+		PlayerID:      playerID,
+		PlayerName:    playerName,
+		BotDifficulty: botDifficulty,
+	}
+
+	resp, err := c.makeRequest("POST", "/api/v1/matchmaking/bot", req, true)
+	if err != nil {
+		return nil, err
+	}
+
+	var result BotMatchResponse
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, err
 	}

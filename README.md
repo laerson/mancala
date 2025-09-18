@@ -4,11 +4,12 @@ A distributed Mancala game implementation built with Go and gRPC, featuring micr
 
 ## Architecture
 
-The system consists of seven main components:
+The system consists of eight main components:
 
 - **Engine Service** (`cmd/engine`): Core game logic and move processing
 - **Games Service** (`cmd/games`): Game session management, player validation, and Redis integration
 - **Matchmaking Service** (`cmd/matchmaking`): Player queue management and automatic game matching
+- **Bot Service** (`cmd/bot`): AI opponents with three difficulty levels (Easy, Medium, Hard)
 - **Auth Service** (`cmd/auth`): User authentication and JWT token management
 - **Notifications Service** (`cmd/notifications`): Real-time event notifications via Server-Sent Events
 - **API Gateway** (`cmd/gateway`): HTTP REST API gateway providing unified client access
@@ -30,10 +31,14 @@ The system consists of seven main components:
                                      │                             │
                                      │                             │
                               ┌─────────────┐               ┌─────────────┐
-                              │Matchmaking  │               │Notifications│
-                              │  Service    │               │  Service    │
+                              │Matchmaking  │◄─────────────►│ Bot Service │
+                              │  Service    │     gRPC      │ (AI Engine) │
                               └─────────────┘               └─────────────┘
                                      │                             │
+                                     │                       ┌─────────────┐
+                                     │                       │Notifications│
+                                     │                       │  Service    │
+                                     │                       └─────────────┘
                                      │ Redis                       │ SSE
                                      ▼                             ▼
                               ┌─────────────┐               ┌─────────────┐
@@ -47,6 +52,10 @@ The system consists of seven main components:
 - **Stateless Engine**: Pure game logic with move validation and processing
 - **Stateful Games Service**: Session management with Redis persistence
 - **Intelligent Matchmaking**: FIFO queue-based player matching with automatic game creation
+- **AI Bot Opponents**: Three difficulty levels with sophisticated game AI
+  - **Easy**: Random valid moves, perfect for beginners
+  - **Medium**: Strategic play with captures and extra turns
+  - **Hard**: Advanced minimax algorithm with alpha-beta pruning
 - **Event Streaming**: Redis Streams for real-time game events and notifications
 - **Player Authentication**: Validates players belong to games and turns
 - **Automatic Cleanup**: Removes finished games from storage
@@ -87,9 +96,16 @@ The easiest way to play Mancala is using the command-line client:
    ./mancala register
    ```
 
-4. **Play a game**:
+4. **Play against other players**:
    ```bash
    ./mancala play
+   ```
+
+5. **Play against AI bots**:
+   ```bash
+   ./mancala bot easy     # Beginner-friendly
+   ./mancala bot medium   # Balanced challenge
+   ./mancala bot hard     # Advanced AI
    ```
 
 📚 **Full CLI documentation**: [docs/CLI_CLIENT.md](docs/CLI_CLIENT.md)
@@ -125,6 +141,7 @@ The easiest way to play Mancala is using the command-line client:
    go build ./cmd/engine
    go build ./cmd/games
    go build ./cmd/matchmaking
+   go build ./cmd/bot
    go build ./cmd/auth
    go build ./cmd/notifications
    go build ./cmd/gateway
@@ -150,10 +167,16 @@ The easiest way to play Mancala is using the command-line client:
    # Runs on port 50052, connects to Redis on localhost:6379 and Engine on localhost:50051
    ```
 
-4. **Start Matchmaking Service**:
+4. **Start Bot Service**:
+   ```bash
+   ./bot
+   # Runs on port 50057, provides AI opponents with three difficulty levels
+   ```
+
+5. **Start Matchmaking Service**:
    ```bash
    ./matchmaking
-   # Runs on port 50054, connects to Redis on localhost:6379 and Games on localhost:50052
+   # Runs on port 50054, connects to Redis on localhost:6379, Games on localhost:50052, and Bot on localhost:50057
    ```
 
 ## Infrastructure as Code Deployment
@@ -191,9 +214,8 @@ This will:
 - ✅ Create OpenStack VM with Ubuntu 22.04
 - ✅ Configure security groups and networking
 - ✅ Install and configure single-node Kubernetes cluster
-- ✅ Deploy Redis, Engine, Games, and Matchmaking services
-- ✅ Expose Games service via NodePort (30052)
-- ✅ Expose Matchmaking service via NodePort (30054)
+- ✅ Deploy Redis, Engine, Games, Matchmaking, Bot, Auth, and Gateway services
+- ✅ Expose API Gateway via NodePort (30080) for unified client access
 - ✅ Configure private GitHub Container Registry access
 
 ### IaC Configuration Options
@@ -244,9 +266,8 @@ ssh -i ~/.ssh/id_rsa ubuntu@<master-ip>
 scp -i ~/.ssh/id_rsa ubuntu@<master-ip>:~/.kube/config ~/.kube/config
 
 # Access services
-# Games service - External: <master-ip>:30052
-# Matchmaking service - External: <master-ip>:30054
-# Internal access: kubectl port-forward -n mancala svc/games 50052:50052
+# API Gateway - External: <master-ip>:30080 (HTTP REST API)
+# Internal access: kubectl port-forward -n mancala svc/gateway 8080:8080
 ```
 
 ## API Reference
@@ -295,6 +316,7 @@ message MakeGameMoveRequest {
 ```protobuf
 service Matchmaking {
   rpc Enqueue(EnqueueRequest) returns (EnqueueResponse);
+  rpc BotMatch(BotMatchRequest) returns (BotMatchResponse);
   rpc CancelQueue(CancelQueueRequest) returns (CancelQueueResponse);
   rpc GetQueueStatus(GetQueueStatusRequest) returns (GetQueueStatusResponse);
   rpc StreamUpdates(StreamUpdatesRequest) returns (stream UpdateEvent);
@@ -302,6 +324,22 @@ service Matchmaking {
 
 message EnqueueRequest {
   Player player = 1;
+}
+```
+
+**Bot Match Creation**:
+```protobuf
+message BotMatchRequest {
+  Player player = 1;
+  string bot_difficulty = 2; // "easy", "medium", "hard"
+}
+
+message BotMatchResponse {
+  bool success = 1;
+  string game_id = 2;
+  string message = 3;
+  string bot_id = 4;
+  string bot_name = 5;
 }
 ```
 
@@ -317,6 +355,86 @@ message GetQueueStatusRequest {
 }
 ```
 
+### Bot Service (port 50057)
+
+**Get Bot Move**:
+```protobuf
+service Bot {
+  rpc GetMove(GetMoveRequest) returns (GetMoveResponse);
+  rpc ListBots(ListBotsRequest) returns (ListBotsResponse);
+  rpc CreateBot(CreateBotRequest) returns (CreateBotResponse);
+}
+
+message GetMoveRequest {
+  string bot_id = 1;
+  GameState game_state = 2;
+  BotDifficulty difficulty = 3;
+}
+
+message GetMoveResponse {
+  oneof result {
+    MoveResult move = 1;
+    Error error = 2;
+  }
+}
+
+message MoveResult {
+  uint32 pit_index = 1;
+  string reasoning = 2;
+  int32 evaluation_score = 3;
+}
+```
+
+**Bot Management**:
+```protobuf
+message CreateBotRequest {
+  BotDifficulty difficulty = 1;
+  string name_suffix = 2;
+}
+
+message BotProfile {
+  string id = 1;
+  string name = 2;
+  BotDifficulty difficulty = 3;
+  string description = 4;
+  int32 wins = 5;
+  int32 losses = 6;
+}
+
+enum BotDifficulty {
+  BOT_DIFFICULTY_UNSPECIFIED = 0;
+  BOT_DIFFICULTY_EASY = 1;        // Random valid moves
+  BOT_DIFFICULTY_MEDIUM = 2;      // Basic strategy (captures, extra turns)
+  BOT_DIFFICULTY_HARD = 3;        // Advanced AI (minimax with pruning)
+}
+```
+
+### API Gateway (port 8080)
+
+**Bot Match HTTP Endpoint**:
+```http
+POST /api/v1/matchmaking/bot
+Authorization: Bearer <jwt-token>
+Content-Type: application/json
+
+{
+  "player_id": "user123",
+  "player_name": "Alice",
+  "bot_difficulty": "medium"
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "game_id": "game-uuid-123",
+  "message": "Bot match created! Playing against Strategic Bot",
+  "bot_id": "bot-abc123",
+  "bot_name": "Strategic Bot"
+}
+```
+
 ## Development
 
 ### Project Structure
@@ -326,16 +444,29 @@ message GetQueueStatusRequest {
 ├── cmd/                    # Service entry points
 │   ├── engine/            # Engine service main
 │   ├── games/             # Games service main
-│   └── matchmaking/       # Matchmaking service main
+│   ├── matchmaking/       # Matchmaking service main
+│   ├── bot/               # Bot service main
+│   ├── auth/              # Auth service main
+│   ├── notifications/     # Notifications service main
+│   ├── gateway/           # API Gateway main
+│   └── mancala/           # CLI client main
 ├── internal/              # Internal packages
 │   ├── engine/           # Engine business logic
 │   ├── games/            # Games business logic, models, storage
 │   ├── matchmaking/      # Matchmaking queue and server logic
+│   ├── bot/              # Bot AI engine and server logic
+│   ├── auth/             # Authentication and JWT handling
+│   ├── notifications/    # Real-time event notifications
+│   ├── gateway/          # HTTP gateway handlers and middleware
+│   ├── mancala/          # CLI client implementation
 │   └── events/           # Redis Streams event publishing
 ├── proto/                # Protocol buffer definitions
 │   ├── engine/          # Engine service protos
 │   ├── games/           # Games service protos
-│   └── matchmaking/     # Matchmaking service protos
+│   ├── matchmaking/     # Matchmaking service protos
+│   ├── bot/             # Bot service protos
+│   ├── auth/            # Auth service protos
+│   └── notifications/   # Notifications service protos
 ├── k8s/                  # Kubernetes manifests
 ├── iac/                  # Infrastructure as Code
 │   ├── terraform/       # OpenStack VM provisioning
@@ -356,6 +487,7 @@ go test -cover ./...
 # Run specific package
 go test ./internal/games/...
 go test ./internal/matchmaking/...
+go test ./internal/bot/...
 ```
 
 **Integration Tests** (require Docker for testcontainers):
@@ -378,6 +510,9 @@ docker build -f cmd/games/Dockerfile -t mancala/games:latest .
 
 # Matchmaking service
 docker build -f cmd/matchmaking/Dockerfile -t mancala/matchmaking:latest .
+
+# Bot service
+docker build -f cmd/bot/Dockerfile -t mancala/bot:latest .
 ```
 
 ## Kubernetes Deployment
@@ -395,8 +530,10 @@ kubectl apply -k k8s/
 kubectl get all -n mancala
 
 # Port forward for local access
+kubectl port-forward -n mancala svc/gateway 8080:8080  # API Gateway (recommended)
 kubectl port-forward -n mancala svc/games 50052:50052
 kubectl port-forward -n mancala svc/matchmaking 50054:50054
+kubectl port-forward -n mancala svc/bot 50057:50057
 ```
 
 ### Configuration
@@ -410,6 +547,12 @@ Services are configured via environment variables:
 **Matchmaking Service**:
 - `REDIS_ADDR`: Redis connection string (default: "localhost:6379")
 - `GAMES_ADDR`: Games service address (default: "localhost:50052")
+- `BOT_ADDR`: Bot service address (default: "localhost:50057")
+
+**Bot Service**:
+- `GRPC_PORT`: Service port (default: "50057")
+- `AUTH_ADDR`: Auth service address (default: "localhost:50055")
+- `JWT_SECRET`: JWT secret for authentication
 
 ## Game Rules
 
@@ -432,9 +575,11 @@ Mancala is a traditional board game with the following rules implemented:
 kubectl get pods -n mancala
 
 # Check service logs
+kubectl logs -n mancala deployment/gateway
 kubectl logs -n mancala deployment/games
 kubectl logs -n mancala deployment/engine
 kubectl logs -n mancala deployment/matchmaking
+kubectl logs -n mancala deployment/bot
 ```
 
 **Redis Connection Issues**:

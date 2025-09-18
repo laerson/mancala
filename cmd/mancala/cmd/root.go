@@ -9,8 +9,10 @@ import (
 )
 
 var (
-	clientState *mancala.ClientState
-	apiClient   *mancala.APIClient
+	clientState   *mancala.ClientState
+	apiClient     *mancala.APIClient
+	currentGameID string
+	inGame        bool
 )
 
 // rootCmd represents the base command when called without any subcommands

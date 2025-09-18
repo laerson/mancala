@@ -11,11 +11,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	currentGameID string
-	inGame        bool
-)
-
 var playCmd = &cobra.Command{
 	Use:   "play",
 	Short: "Join the matchmaking queue",
