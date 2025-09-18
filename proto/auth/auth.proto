@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package auth;
+
+option go_package = "github.com/laerson/mancala/proto/auth";
+
+// Authentication service for user management and JWT tokens
+service Auth {
+  // Register a new user account
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+
+  // Authenticate user and return JWT token
+  rpc Login(LoginRequest) returns (LoginResponse);
+
+  // Validate JWT token and return user info
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+
+  // Refresh JWT token
+  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse);
+
+  // Get user profile information
+  rpc GetProfile(GetProfileRequest) returns (GetProfileResponse);
+}
+
+// User account information
+message User {
+  string user_id = 1;        // UUID
+  string username = 2;       // Unique username
+  string display_name = 3;   // Display name (can be same as username)
+  int64 created_at = 4;      // Unix timestamp
+  int64 last_login = 5;      // Unix timestamp
+}
+
+// Register new user
+message RegisterRequest {
+  string username = 1;       // Must be unique, 3-30 characters
+  string password = 2;       // Minimum 8 characters
+  string display_name = 3;   // Optional, defaults to username
+}
+
+message RegisterResponse {
+  bool success = 1;
+  string message = 2;
+  User user = 3;             // User info (without sensitive data)
+  string access_token = 4;   // JWT token
+  string refresh_token = 5;  // Refresh token
+}
+
+// Login existing user
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  bool success = 1;
+  string message = 2;
+  User user = 3;
+  string access_token = 4;
+  string refresh_token = 5;
+}
+
+// Validate JWT token
+message ValidateTokenRequest {
+  string access_token = 1;
+}
+
+message ValidateTokenResponse {
+  bool valid = 1;
+  string message = 2;
+  User user = 3;             // User info if token is valid
+  int64 expires_at = 4;      // Token expiration timestamp
+}
+
+// Refresh JWT token
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+message RefreshTokenResponse {
+  bool success = 1;
+  string message = 2;
+  string access_token = 3;   // New access token
+  string refresh_token = 4;  // New refresh token
+}
+
+// Get user profile
+message GetProfileRequest {
+  string user_id = 1;        // UUID
+}
+
+message GetProfileResponse {
+  bool success = 1;
+  string message = 2;
+  User user = 3;
+}
+
+// Error codes for authentication
+enum AuthError {
+  AUTH_ERROR_UNSPECIFIED = 0;
+  AUTH_ERROR_INVALID_CREDENTIALS = 1;
+  AUTH_ERROR_USERNAME_EXISTS = 2;
+  AUTH_ERROR_INVALID_TOKEN = 3;
+  AUTH_ERROR_TOKEN_EXPIRED = 4;
+  AUTH_ERROR_USER_NOT_FOUND = 5;
+  AUTH_ERROR_WEAK_PASSWORD = 6;
+  AUTH_ERROR_INVALID_USERNAME = 7;
+}
