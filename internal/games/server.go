@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/laerson/mancala/internal/auth"
 	"github.com/laerson/mancala/internal/events"
 	enginepb "github.com/laerson/mancala/proto/engine"
 	gamespb "github.com/laerson/mancala/proto/games"
@@ -51,6 +52,15 @@ func (s *Server) Move(ctx context.Context, req *gamespb.MakeGameMoveRequest) (*g
 		return &gamespb.MakeGameMoveResponse{
 			Result: &gamespb.MakeGameMoveResponse_Error{
 				Error: &gamespb.Error{Message: "player ID and game ID are required"},
+			},
+		}, nil
+	}
+
+	// Validate that the authenticated user owns this player ID
+	if err := auth.ValidatePlayerOwnership(ctx, req.PlayerId); err != nil {
+		return &gamespb.MakeGameMoveResponse{
+			Result: &gamespb.MakeGameMoveResponse_Error{
+				Error: &gamespb.Error{Message: "unauthorized: player ID does not match authenticated user"},
 			},
 		}, nil
 	}

@@ -26,8 +26,15 @@ spec:
           value: "redis:6379"
         - name: GAMES_ADDR
           value: "games:50052"
+        - name: AUTH_ADDR
+          value: "auth:50055"
         - name: GRPC_PORT
           value: "50054"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: auth-secrets
+              key: jwt-secret
         - name: MATCH_TIMEOUT_SECONDS
           value: "30"
         - name: MAX_QUEUE_SIZE
@@ -62,6 +69,12 @@ spec:
         - sh
         - -c
         - "until nc -z games 50052; do echo waiting for games; sleep 2; done"
+      - name: wait-for-auth
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - "until nc -z auth 50055; do echo waiting for auth; sleep 2; done"
 ---
 apiVersion: v1
 kind: Service
