@@ -4,32 +4,22 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/laerson/mancala/internal/auth"
-	"github.com/laerson/mancala/internal/matchmaking"
+	"github.com/laerson/mancala/internal/notifications"
 	authpb "github.com/laerson/mancala/proto/auth"
-	gamespb "github.com/laerson/mancala/proto/games"
-	matchmakingpb "github.com/laerson/mancala/proto/matchmaking"
+	notificationspb "github.com/laerson/mancala/proto/notifications"
 )
 
 func main() {
 	port := os.Getenv("GRPC_PORT")
 	if port == "" {
-		port = "50054"
-	}
-
-	// Create gRPC connections
-	gamesAddr := os.Getenv("GAMES_ADDR")
-	if gamesAddr == "" {
-		gamesAddr = "games:50052"
-	}
-
-	authAddr := os.Getenv("AUTH_ADDR")
-	if authAddr == "" {
-		authAddr = "auth:50055"
+		port = "50056"
 	}
 
 	redisAddr := os.Getenv("REDIS_ADDR")
@@ -37,18 +27,16 @@ func main() {
 		redisAddr = "redis:6379"
 	}
 
+	authAddr := os.Getenv("AUTH_ADDR")
+	if authAddr == "" {
+		authAddr = "auth:50055"
+	}
+
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		jwtSecret = "mancala-jwt-secret-key-change-in-production"
 		log.Println("Warning: Using default JWT secret. Set JWT_SECRET environment variable in production!")
 	}
-
-	// Connect to Games service
-	gamesConn, err := grpc.NewClient(gamesAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Fatalf("Failed to connect to games service: %v", err)
-	}
-	defer gamesConn.Close()
 
 	// Connect to Auth service
 	authConn, err := grpc.NewClient(authAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -62,11 +50,8 @@ func main() {
 		defer authConn.Close()
 	}
 
-	// Create server
-	server := matchmaking.NewServer(
-		gamespb.NewGamesClient(gamesConn),
-		redisAddr,
-	)
+	// Create notification server
+	notificationServer := notifications.NewServer(redisAddr)
 
 	// Create auth interceptor
 	authInterceptor := auth.NewAuthInterceptor(authClient, jwtSecret)
@@ -81,12 +66,24 @@ func main() {
 		grpc.UnaryInterceptor(authInterceptor.UnaryInterceptor()),
 		grpc.StreamInterceptor(authInterceptor.StreamInterceptor()),
 	)
-	matchmakingpb.RegisterMatchmakingServer(grpcServer, server)
+	notificationspb.RegisterNotificationsServer(grpcServer, notificationServer)
 
-	log.Printf("Matchmaking service listening on port %s", port)
-	log.Printf("Connected to Games service at %s", gamesAddr)
-	log.Printf("Connected to Auth service at %s", authAddr)
+	// Handle graceful shutdown
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-c
+		log.Println("Shutting down notification service...")
+		notificationServer.Stop()
+		grpcServer.GracefulStop()
+	}()
+
+	log.Printf("Notification service listening on port %s", port)
 	log.Printf("Connected to Redis at %s", redisAddr)
+	log.Printf("Connected to Auth service at %s", authAddr)
+	log.Printf("Ready to serve notifications")
+
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("Failed to serve: %v", err)
 	}

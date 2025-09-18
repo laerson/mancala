@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/laerson/mancala/internal/auth"
 	"github.com/laerson/mancala/internal/events"
 	gamespb "github.com/laerson/mancala/proto/games"
 	matchmakingpb "github.com/laerson/mancala/proto/matchmaking"
@@ -48,6 +49,11 @@ func (s *Server) Enqueue(ctx context.Context, req *matchmakingpb.EnqueueRequest)
 		return nil, status.Errorf(codes.InvalidArgument, "player name is required")
 	}
 
+	// Validate that the authenticated user owns this player ID
+	if err := auth.ValidatePlayerOwnership(ctx, req.Player.Id); err != nil {
+		return nil, err
+	}
+
 	queueID := uuid.New().String()
 	s.queue.Enqueue(req.Player, queueID)
 
@@ -63,6 +69,11 @@ func (s *Server) Enqueue(ctx context.Context, req *matchmakingpb.EnqueueRequest)
 func (s *Server) CancelQueue(ctx context.Context, req *matchmakingpb.CancelQueueRequest) (*matchmakingpb.CancelQueueResponse, error) {
 	if req.PlayerId == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "player ID is required")
+	}
+
+	// Validate that the authenticated user owns this player ID
+	if err := auth.ValidatePlayerOwnership(ctx, req.PlayerId); err != nil {
+		return nil, err
 	}
 
 	removed := s.queue.RemovePlayer(req.PlayerId)
@@ -86,6 +97,11 @@ func (s *Server) GetQueueStatus(ctx context.Context, req *matchmakingpb.GetQueue
 		return nil, status.Errorf(codes.InvalidArgument, "player ID is required")
 	}
 
+	// Validate that the authenticated user owns this player ID
+	if err := auth.ValidatePlayerOwnership(ctx, req.PlayerId); err != nil {
+		return nil, err
+	}
+
 	queuedPlayer, position := s.queue.GetPlayerStatus(req.PlayerId)
 	if queuedPlayer == nil {
 		return &matchmakingpb.GetQueueStatusResponse{
@@ -103,6 +119,11 @@ func (s *Server) GetQueueStatus(ctx context.Context, req *matchmakingpb.GetQueue
 func (s *Server) StreamUpdates(req *matchmakingpb.StreamUpdatesRequest, stream matchmakingpb.Matchmaking_StreamUpdatesServer) error {
 	if req.PlayerId == "" {
 		return status.Errorf(codes.InvalidArgument, "player ID is required")
+	}
+
+	// Validate that the authenticated user owns this player ID
+	if err := auth.ValidatePlayerOwnership(stream.Context(), req.PlayerId); err != nil {
+		return err
 	}
 
 	// Set the stream for this player

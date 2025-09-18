@@ -1,52 +1,44 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: matchmaking
+  name: auth
   labels:
-    app: matchmaking
+    app: auth
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
-      app: matchmaking
+      app: auth
   template:
     metadata:
       labels:
-        app: matchmaking
+        app: auth
     spec:
       imagePullSecrets:
       - name: github
       containers:
-      - name: matchmaking
-        image: ghcr.io/laerson/mancala:latest-matchmaking
+      - name: auth
+        image: ghcr.io/laerson/mancala:latest-auth
         ports:
-        - containerPort: 50054
+        - containerPort: 50055
         env:
+        - name: DATABASE_URL
+          value: "postgres://postgres:password@postgres:5432/mancala?sslmode=disable"
         - name: REDIS_ADDR
           value: "redis:6379"
-        - name: GAMES_ADDR
-          value: "games:50052"
-        - name: AUTH_ADDR
-          value: "auth:50055"
-        - name: GRPC_PORT
-          value: "50054"
         - name: JWT_SECRET
           valueFrom:
             secretKeyRef:
               name: auth-secrets
               key: jwt-secret
-        - name: MATCH_TIMEOUT_SECONDS
-          value: "30"
-        - name: MAX_QUEUE_SIZE
-          value: "1000"
         readinessProbe:
           tcpSocket:
-            port: 50054
+            port: 50055
           initialDelaySeconds: 5
           periodSeconds: 10
         livenessProbe:
           tcpSocket:
-            port: 50054
+            port: 50055
           initialDelaySeconds: 10
           periodSeconds: 30
         resources:
@@ -57,36 +49,42 @@ spec:
             memory: "128Mi"
             cpu: "100m"
       initContainers:
+      - name: wait-for-postgres
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - "until nc -z postgres 5432; do echo waiting for postgres; sleep 2; done"
       - name: wait-for-redis
         image: busybox:1.35
         command:
         - sh
         - -c
         - "until nc -z redis 6379; do echo waiting for redis; sleep 2; done"
-      - name: wait-for-games
-        image: busybox:1.35
-        command:
-        - sh
-        - -c
-        - "until nc -z games 50052; do echo waiting for games; sleep 2; done"
-      - name: wait-for-auth
-        image: busybox:1.35
-        command:
-        - sh
-        - -c
-        - "until nc -z auth 50055; do echo waiting for auth; sleep 2; done"
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: matchmaking
+  name: auth
   labels:
-    app: matchmaking
+    app: auth
 spec:
   ports:
-  - port: 50054
-    targetPort: 50054
+  - port: 50055
+    targetPort: 50055
     name: grpc
   selector:
-    app: matchmaking
+    app: auth
   type: ClusterIP
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: auth-secrets
+  labels:
+    app: auth
+type: Opaque
+data:
+  # Base64 encoded JWT secret - replace with your own secret
+  # This is "mancala-jwt-secret-key-change-in-production" encoded
+  jwt-secret: bWFuY2FsYS1qd3Qtc2VjcmV0LWtleS1jaGFuZ2UtaW4tcHJvZHVjdGlvbg==

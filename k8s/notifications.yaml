@@ -1,52 +1,46 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: matchmaking
+  name: notifications
   labels:
-    app: matchmaking
+    app: notifications
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: matchmaking
+      app: notifications
   template:
     metadata:
       labels:
-        app: matchmaking
+        app: notifications
     spec:
       imagePullSecrets:
       - name: github
       containers:
-      - name: matchmaking
-        image: ghcr.io/laerson/mancala:latest-matchmaking
+      - name: notifications
+        image: ghcr.io/laerson/mancala:latest-notifications
         ports:
-        - containerPort: 50054
+        - containerPort: 50056
         env:
         - name: REDIS_ADDR
           value: "redis:6379"
-        - name: GAMES_ADDR
-          value: "games:50052"
         - name: AUTH_ADDR
           value: "auth:50055"
         - name: GRPC_PORT
-          value: "50054"
+          value: "50056"
         - name: JWT_SECRET
           valueFrom:
             secretKeyRef:
               name: auth-secrets
               key: jwt-secret
-        - name: MATCH_TIMEOUT_SECONDS
-          value: "30"
-        - name: MAX_QUEUE_SIZE
-          value: "1000"
         readinessProbe:
           tcpSocket:
-            port: 50054
+            port: 50056
           initialDelaySeconds: 5
           periodSeconds: 10
         livenessProbe:
           tcpSocket:
-            port: 50054
+            port: 50056
           initialDelaySeconds: 10
           periodSeconds: 30
         resources:
@@ -63,12 +57,6 @@ spec:
         - sh
         - -c
         - "until nc -z redis 6379; do echo waiting for redis; sleep 2; done"
-      - name: wait-for-games
-        image: busybox:1.35
-        command:
-        - sh
-        - -c
-        - "until nc -z games 50052; do echo waiting for games; sleep 2; done"
       - name: wait-for-auth
         image: busybox:1.35
         command:
@@ -79,14 +67,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: matchmaking
+  name: notifications
   labels:
-    app: matchmaking
+    app: notifications
 spec:
   ports:
-  - port: 50054
-    targetPort: 50054
+  - port: 50056
+    targetPort: 50056
     name: grpc
   selector:
-    app: matchmaking
+    app: notifications
   type: ClusterIP

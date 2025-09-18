@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/laerson/mancala/internal/auth"
+	"github.com/laerson/mancala/internal/events"
 	enginepb "github.com/laerson/mancala/proto/engine"
 	gamespb "github.com/laerson/mancala/proto/games"
 	"google.golang.org/grpc"
@@ -15,14 +17,16 @@ type EngineClient interface {
 
 type Server struct {
 	gamespb.UnimplementedGamesServer
-	storage      Storage
-	engineClient EngineClient
+	storage        Storage
+	engineClient   EngineClient
+	eventPublisher *events.EventPublisher
 }
 
-func NewServer(storage Storage, engineClient EngineClient) *Server {
+func NewServer(storage Storage, engineClient EngineClient, redisAddr string) *Server {
 	return &Server{
-		storage:      storage,
-		engineClient: engineClient,
+		storage:        storage,
+		engineClient:   engineClient,
+		eventPublisher: events.NewEventPublisher(redisAddr),
 	}
 }
 
@@ -48,6 +52,15 @@ func (s *Server) Move(ctx context.Context, req *gamespb.MakeGameMoveRequest) (*g
 		return &gamespb.MakeGameMoveResponse{
 			Result: &gamespb.MakeGameMoveResponse_Error{
 				Error: &gamespb.Error{Message: "player ID and game ID are required"},
+			},
+		}, nil
+	}
+
+	// Validate that the authenticated user owns this player ID
+	if err := auth.ValidatePlayerOwnership(ctx, req.PlayerId); err != nil {
+		return &gamespb.MakeGameMoveResponse{
+			Result: &gamespb.MakeGameMoveResponse_Error{
+				Error: &gamespb.Error{Message: "unauthorized: player ID does not match authenticated user"},
 			},
 		}, nil
 	}
@@ -103,7 +116,25 @@ func (s *Server) Move(ctx context.Context, req *gamespb.MakeGameMoveRequest) (*g
 		game.State.Board = result.MoveResult.Board
 		game.State.CurrentPlayer = result.MoveResult.CurrentPlayer
 
+		// Publish MOVE_MADE event
+		gameStateMap := gameStateToMap(game.State)
+		moveResultMap := moveResultToMap(result.MoveResult)
+		err = s.eventPublisher.PublishMoveMade(ctx, req.GameId, req.PlayerId, req.PitIndex, gameStateMap, moveResultMap)
+		if err != nil {
+			// Log error but don't fail the game operation
+			fmt.Printf("Failed to publish move made event: %v", err)
+		}
+
 		if result.MoveResult.IsFinished {
+			// Publish GAME_OVER event
+			winnerID := determineWinner(result.MoveResult, game)
+			isDraw := winnerID == ""
+			err = s.eventPublisher.PublishGameOver(ctx, req.GameId, winnerID, isDraw, gameStateMap)
+			if err != nil {
+				// Log error but don't fail the game operation
+				fmt.Printf("Failed to publish game over event: %v", err)
+			}
+
 			err = s.storage.DeleteGame(ctx, req.GameId)
 			if err != nil {
 				return &gamespb.MakeGameMoveResponse{
@@ -134,5 +165,58 @@ func (s *Server) Move(ctx context.Context, req *gamespb.MakeGameMoveRequest) (*g
 				Error: &gamespb.Error{Message: "unexpected engine response"},
 			},
 		}, nil
+	}
+}
+
+// Helper function to convert GameState to map for event publishing
+func gameStateToMap(state *enginepb.GameState) map[string]interface{} {
+	if state == nil {
+		return nil
+	}
+
+	boardSlice := make([]interface{}, len(state.Board.Pits))
+	for i, v := range state.Board.Pits {
+		boardSlice[i] = v
+	}
+
+	return map[string]interface{}{
+		"board":          boardSlice,
+		"current_player": int(state.CurrentPlayer),
+	}
+}
+
+// Helper function to convert MoveResult to map for event publishing
+func moveResultToMap(moveResult *enginepb.MoveResult) map[string]interface{} {
+	if moveResult == nil {
+		return nil
+	}
+
+	boardSlice := make([]interface{}, len(moveResult.Board.Pits))
+	for i, v := range moveResult.Board.Pits {
+		boardSlice[i] = v
+	}
+
+	return map[string]interface{}{
+		"board":          boardSlice,
+		"current_player": int(moveResult.CurrentPlayer),
+		"is_finished":    moveResult.IsFinished,
+		"winner":         int(moveResult.Winner),
+	}
+}
+
+// Helper function to determine winner from MoveResult and game context
+func determineWinner(moveResult *enginepb.MoveResult, game *gamespb.Game) string {
+	if !moveResult.IsFinished {
+		return ""
+	}
+
+	switch moveResult.Winner {
+	case enginepb.Winner_WINNER_PLAYER_ONE:
+		return game.Player1Id
+	case enginepb.Winner_WINNER_PLAYER_TWO:
+		return game.Player2Id
+	default:
+		// Draw or no winner
+		return ""
 	}
 }
