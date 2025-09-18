@@ -51,7 +51,7 @@ func setupIntegrationTest(t *testing.T) (gamespb.GamesClient, func()) {
 		},
 	})
 
-	server := NewServer(storage, mockEngineClient)
+	server := NewServer(storage, mockEngineClient, "localhost:6379")
 
 	lis := bufconn.Listen(bufSize)
 	grpcServer := grpc.NewServer()

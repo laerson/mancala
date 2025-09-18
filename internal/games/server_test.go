@@ -12,7 +12,7 @@ import (
 func TestServer_Create(t *testing.T) {
 	storage := NewMockStorage()
 	engineClient := NewMockEngineClient()
-	server := NewServer(storage, engineClient)
+	server := NewServer(storage, engineClient, "localhost:6379")
 
 	tests := []struct {
 		name    string
@@ -79,7 +79,7 @@ func TestServer_Create(t *testing.T) {
 func TestServer_Move_ValidMove(t *testing.T) {
 	storage := NewMockStorage()
 	engineClient := NewMockEngineClient()
-	server := NewServer(storage, engineClient)
+	server := NewServer(storage, engineClient, "localhost:6379")
 
 	game := NewGame("player1", "player2")
 	storage.SaveGame(context.Background(), game)
@@ -125,7 +125,7 @@ func TestServer_Move_ValidMove(t *testing.T) {
 func TestServer_Move_GameNotFound(t *testing.T) {
 	storage := NewMockStorage()
 	engineClient := NewMockEngineClient()
-	server := NewServer(storage, engineClient)
+	server := NewServer(storage, engineClient, "localhost:6379")
 
 	request := &gamespb.MakeGameMoveRequest{
 		PlayerId: "player1",
@@ -151,7 +151,7 @@ func TestServer_Move_GameNotFound(t *testing.T) {
 func TestServer_Move_PlayerNotInGame(t *testing.T) {
 	storage := NewMockStorage()
 	engineClient := NewMockEngineClient()
-	server := NewServer(storage, engineClient)
+	server := NewServer(storage, engineClient, "localhost:6379")
 
 	game := NewGame("player1", "player2")
 	storage.SaveGame(context.Background(), game)
@@ -180,7 +180,7 @@ func TestServer_Move_PlayerNotInGame(t *testing.T) {
 func TestServer_Move_NotPlayerTurn(t *testing.T) {
 	storage := NewMockStorage()
 	engineClient := NewMockEngineClient()
-	server := NewServer(storage, engineClient)
+	server := NewServer(storage, engineClient, "localhost:6379")
 
 	game := NewGame("player1", "player2")
 	storage.SaveGame(context.Background(), game)
@@ -209,7 +209,7 @@ func TestServer_Move_NotPlayerTurn(t *testing.T) {
 func TestServer_Move_EngineError(t *testing.T) {
 	storage := NewMockStorage()
 	engineClient := NewMockEngineClient()
-	server := NewServer(storage, engineClient)
+	server := NewServer(storage, engineClient, "localhost:6379")
 
 	game := NewGame("player1", "player2")
 	storage.SaveGame(context.Background(), game)
@@ -241,7 +241,7 @@ func TestServer_Move_EngineError(t *testing.T) {
 func TestServer_Move_EngineReturnedError(t *testing.T) {
 	storage := NewMockStorage()
 	engineClient := NewMockEngineClient()
-	server := NewServer(storage, engineClient)
+	server := NewServer(storage, engineClient, "localhost:6379")
 
 	game := NewGame("player1", "player2")
 	storage.SaveGame(context.Background(), game)
@@ -276,7 +276,7 @@ func TestServer_Move_EngineReturnedError(t *testing.T) {
 func TestServer_Move_GameFinished(t *testing.T) {
 	storage := NewMockStorage()
 	engineClient := NewMockEngineClient()
-	server := NewServer(storage, engineClient)
+	server := NewServer(storage, engineClient, "localhost:6379")
 
 	game := NewGame("player1", "player2")
 	storage.SaveGame(context.Background(), game)
@@ -326,7 +326,7 @@ func TestServer_Move_GameFinished(t *testing.T) {
 func TestServer_Move_EmptyPlayerID(t *testing.T) {
 	storage := NewMockStorage()
 	engineClient := NewMockEngineClient()
-	server := NewServer(storage, engineClient)
+	server := NewServer(storage, engineClient, "localhost:6379")
 
 	request := &gamespb.MakeGameMoveRequest{
 		PlayerId: "",
@@ -352,7 +352,7 @@ func TestServer_Move_EmptyPlayerID(t *testing.T) {
 func TestServer_Move_EmptyGameID(t *testing.T) {
 	storage := NewMockStorage()
 	engineClient := NewMockEngineClient()
-	server := NewServer(storage, engineClient)
+	server := NewServer(storage, engineClient, "localhost:6379")
 
 	request := &gamespb.MakeGameMoveRequest{
 		PlayerId: "player1",

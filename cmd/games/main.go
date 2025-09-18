@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net"
+	"os"
 
 	"github.com/laerson/mancala/internal/games"
 	enginepb "github.com/laerson/mancala/proto/engine"
@@ -12,9 +13,25 @@ import (
 )
 
 func main() {
-	storage := games.NewRedisStorage("localhost:6379", "", 0)
+	// Get configuration from environment variables
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = "localhost:6379"
+	}
 
-	engineConn, err := grpc.NewClient("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	engineAddr := os.Getenv("ENGINE_ADDR")
+	if engineAddr == "" {
+		engineAddr = "localhost:50051"
+	}
+
+	port := os.Getenv("GRPC_PORT")
+	if port == "" {
+		port = "50052"
+	}
+
+	storage := games.NewRedisStorage(redisAddr, "", 0)
+
+	engineConn, err := grpc.NewClient(engineAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("failed to connect to engine service: %v", err)
 	}
@@ -22,9 +39,9 @@ func main() {
 
 	engineClient := enginepb.NewEngineClient(engineConn)
 
-	gamesServer := games.NewServer(storage, engineClient)
+	gamesServer := games.NewServer(storage, engineClient, redisAddr)
 
-	lis, err := net.Listen("tcp", ":50052")
+	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
@@ -32,7 +49,9 @@ func main() {
 	grpcServer := grpc.NewServer()
 	gamespb.RegisterGamesServer(grpcServer, gamesServer)
 
-	log.Println("Starting games service on port 50052")
+	log.Printf("Starting games service on port %s", port)
+	log.Printf("Connected to Redis at %s for event publishing", redisAddr)
+	log.Printf("Connected to Engine service at %s", engineAddr)
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
