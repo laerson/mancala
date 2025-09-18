@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/laerson/mancala/internal/auth"
+	"google.golang.org/grpc/metadata"
 )
 
 // JWTMiddleware validates JWT tokens for protected routes
@@ -100,5 +101,14 @@ func addGRPCContext(c *gin.Context) context.Context {
 	if userID, exists := c.Get("user_id"); exists {
 		ctx = context.WithValue(ctx, "user_id", userID)
 	}
+
+	// Add JWT token to gRPC metadata for backend service authentication
+	if token, exists := c.Get("jwt_token"); exists {
+		md := map[string]string{
+			"authorization": "Bearer " + token.(string),
+		}
+		ctx = metadata.NewOutgoingContext(ctx, metadata.New(md))
+	}
+
 	return ctx
 }

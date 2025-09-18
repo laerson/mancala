@@ -16,6 +16,7 @@ metadata:
   labels:
     app: postgres
 spec:
+  storageClassName: local-storage
   accessModes:
     - ReadWriteOnce
   resources:
