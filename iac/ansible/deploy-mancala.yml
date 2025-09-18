@@ -47,6 +47,13 @@
             .dockerconfigjson: "{{ docker_config_json | b64encode }}"
         kubeconfig: "{{ kubeconfig_path }}"
 
+    - name: Deploy PostgreSQL
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('file', '../../k8s/postgres.yaml') | from_yaml_all | list }}"
+        namespace: "{{ app_namespace }}"
+        kubeconfig: "{{ kubeconfig_path }}"
+
     - name: Deploy Redis
       kubernetes.core.k8s:
         state: present
@@ -72,6 +79,13 @@
       kubernetes.core.k8s:
         state: present
         definition: "{{ lookup('file', '../../k8s/games.yaml') | from_yaml_all | list }}"
+        namespace: "{{ app_namespace }}"
+        kubeconfig: "{{ kubeconfig_path }}"
+
+    - name: Deploy Auth service
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('file', '../../k8s/auth.yaml') | from_yaml_all | list }}"
         namespace: "{{ app_namespace }}"
         kubeconfig: "{{ kubeconfig_path }}"
 
@@ -162,6 +176,28 @@
               app: matchmaking
         kubeconfig: "{{ kubeconfig_path }}"
 
+    - name: Create NodePort service for auth (for external access)
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: auth-nodeport
+            namespace: "{{ app_namespace }}"
+            labels:
+              app: auth
+          spec:
+            type: NodePort
+            ports:
+            - port: 50055
+              targetPort: 50055
+              nodePort: 30055
+              name: grpc
+            selector:
+              app: auth
+        kubeconfig: "{{ kubeconfig_path }}"
+
     - name: Get service endpoints
       shell: kubectl get svc -n {{ app_namespace }}
       environment:
@@ -178,4 +214,5 @@
           - "Mancala services deployed successfully!"
           - "Games service accessible at: {{ ansible_default_ipv4.address }}:30052"
           - "Matchmaking service accessible at: {{ ansible_default_ipv4.address }}:30054"
+          - "Auth service accessible at: {{ ansible_default_ipv4.address }}:30055"
           - "Use kubectl port-forward for local access to other services"

@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth
+  labels:
+    app: auth
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: auth
+  template:
+    metadata:
+      labels:
+        app: auth
+    spec:
+      imagePullSecrets:
+      - name: github
+      containers:
+      - name: auth
+        image: ghcr.io/laerson/mancala:latest-auth
+        ports:
+        - containerPort: 50055
+        env:
+        - name: DATABASE_URL
+          value: "postgres://postgres:password@postgres:5432/mancala?sslmode=disable"
+        - name: REDIS_ADDR
+          value: "redis:6379"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: auth-secrets
+              key: jwt-secret
+        readinessProbe:
+          tcpSocket:
+            port: 50055
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: 50055
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+      initContainers:
+      - name: wait-for-postgres
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - "until nc -z postgres 5432; do echo waiting for postgres; sleep 2; done"
+      - name: wait-for-redis
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - "until nc -z redis 6379; do echo waiting for redis; sleep 2; done"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth
+  labels:
+    app: auth
+spec:
+  ports:
+  - port: 50055
+    targetPort: 50055
+    name: grpc
+  selector:
+    app: auth
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: auth-secrets
+  labels:
+    app: auth
+type: Opaque
+data:
+  # Base64 encoded JWT secret - replace with your own secret
+  # This is "mancala-jwt-secret-key-change-in-production" encoded
+  jwt-secret: bWFuY2FsYS1qd3Qtc2VjcmV0LWtleS1jaGFuZ2UtaW4tcHJvZHVjdGlvbg==
